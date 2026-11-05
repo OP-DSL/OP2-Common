@@ -43,6 +43,8 @@ _op2_translator_rejects(fortran_info_dim cuda_f2c rejects.F90 "${_info}" -D INFO
 _op2_translator_rejects(runtime_index cuda_legacy rejects.cpp "kernel: runtime map indices and dims are not supported by cuda_legacy" -D RUNTIME_INDEX)
 _op2_translator_rejects(const_dim cuda rejects.cpp "expected a constant int expression" -D CONST_DIM)
 _op2_translator_rejects(recursion cuda rejects.cpp "recursive kernel functions or types are not supported: fact" -D RECURSION)
+_op2_translator_rejects(template_call cuda rejects.cpp "rejects.cpp:[0-9]+:[0-9]+: error: kernel: kernels may not call function templates: twice" -D TEMPLATE_CALL)
+_op2_translator_rejects(namespaced cuda rejects.cpp "rejects.cpp:[0-9]+:[0-9]+: error: half: kernel functions in a namespace are not supported: helpers" -D NAMESPACED)
 _op2_translator_falls_back(fortran_implied_save cuda_f2c rejects.F90 "SAVE local s is unsupported" -D IMPLIED_SAVE)
 _op2_translator_rejects(fortran_vector_map cuda_f2c rejects.F90 "assign_k: vector map arguments are not supported in Fortran" -D VECTOR_MAP)
 _op2_translator_falls_back(fortran_slice_legacy openmp_legacy rejects.F90 "slice_k element-wise access incompatible with stride insertion" -D SLICE)

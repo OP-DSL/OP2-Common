@@ -3,8 +3,9 @@
 // (an OP_INC one only to increment, an OP_READ one to const), an info
 // argument that doesn't match its maximum, one dat passed as two types, a map
 // index a legacy target needs as a constant, a non-constant const dim, a
-// recursive helper, an include that isn't there, or an info argument, which
-// the legacy GPU targets don't support.
+// recursive helper, a function template or a helper in a namespace, an include
+// that isn't there, or an info argument, which the legacy GPU targets don't
+// support.
 
 #include <cstring>
 
@@ -18,6 +19,12 @@ inline void take(const double *v, double *r) { r[0] = v[0]; }
 
 #if defined(RECURSION)
 inline double fact(double x) { return x <= 1.0 ? 1.0 : x * fact(x - 1.0); }
+#elif defined(TEMPLATE_CALL)
+template<typename T> inline T twice(T x) { return x + x; }
+#elif defined(NAMESPACED)
+namespace helpers {
+inline double half(double x) { return 0.5 * x; }
+}
 #endif
 
 void kernel(const double *q, double *r, double *p) {
@@ -40,6 +47,10 @@ void kernel(const double *q, double *r, double *p) {
     r[0] = p[0];
 #elif defined(RECURSION)
     r[0] = fact(q[0]);
+#elif defined(TEMPLATE_CALL)
+    r[0] = twice(q[0]);
+#elif defined(NAMESPACED)
+    r[0] = helpers::half(q[0]);
 #endif
 }
 

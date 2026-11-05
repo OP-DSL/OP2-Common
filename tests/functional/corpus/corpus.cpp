@@ -1,8 +1,9 @@
 // The translator corpus: kernels written the ways the C++ translator
-// rewrites (every accepted increment form, helpers taking arguments, array
-// parameters, a local array passed where an argument is, branches and
-// loops, map indices and dims known only at run time), each loop checked
-// against its kernel called directly, element by element, on the same data.
+// rewrites (every accepted increment form, helpers taking arguments,
+// overloaded helpers, array parameters, a local array passed where an
+// argument is, branches and loops, map indices and dims known only at run
+// time), each loop checked against its kernel called directly, element by
+// element, on the same data.
 
 #include "op_seq.h"
 
@@ -16,6 +17,7 @@ constexpr int nnodes = 40;
 
 // --- KERNELS ---
 inline void add_to(double *t, double v) { t[0] += v; }
+inline void add_to(float *t, float v) { t[0] += v; }
 
 void increments(double *a, double *b, const double *w) {
     a[0] += w[0];
@@ -38,6 +40,9 @@ void arrays(const double q[3], const double *n, double r[]) {
     r[1] = dot(unit, n);
     r[2] = dot(q, n) + sqrt(fabs(q[0]));
 }
+
+inline double weight(double x) { return 2.0 * x; }
+inline double weight(int k) { return 0.5 * k; }
 
 void control(const double *x, const int *k, double *y) {
     double acc = 0.0;
@@ -62,7 +67,7 @@ void control(const double *x, const int *k, double *y) {
     int i = 0;
     while (i < k[0] && i < 5)
         ++i;
-    y[1] = (k[0] > 3 ? fmin(acc, x[0]) : fmax(acc, x[1])) + i;
+    y[1] = (k[0] > 3 ? fmin(acc, x[0]) : fmax(acc, x[1])) + i + weight(acc) + weight(k[0]);
 }
 
 void gather(const double *n, const double *g, double *y) {

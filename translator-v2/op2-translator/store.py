@@ -21,7 +21,15 @@ class Entity:
 
     program: Program
     scope: List[str] = field(default_factory=list)
+    # The keys of the entities it uses.
     depends: Set[str] = field(default_factory=set)
+    # What tells it from the other entities of its name: clang's USR in C++,
+    # so overloads are apart, its name in Fortran.
+    key: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.key:
+            self.key = self.name
 
     # Deep-copy everything but the program reference
     def __deepcopy__(self, memo):
@@ -50,6 +58,8 @@ class Type(Entity):
 class Function(Entity):
     parameters: List[str] = field(default_factory=list)
     returns: Optional[OP.Type] = None
+    # Calls of the program's own function templates, which kernels cannot use.
+    template_calls: List[Any] = field(default_factory=list)
 
     def __str__(self):
         return f"Function(name='{self.name}', scope={self.scope}, depends={self.depends})"
@@ -143,6 +153,16 @@ class Application:
                 break
 
         return candidates
+
+    # The entities of key, as findEntities finds those of a name.
+    def findByKey(self, key: str, program: Optional[Program] = None) -> List[Entity]:
+        programs = ([program] if program is not None else []) + [p for p in self.programs if p != program]
+        for candidate in programs:
+            found = [e for e in candidate.entities if e.key == key]
+            if found:
+                return found
+
+        return []
 
     # All const ptrs including external_consts
     def constPtrs(self) -> Set[str]:

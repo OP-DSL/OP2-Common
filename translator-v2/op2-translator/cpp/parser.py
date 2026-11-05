@@ -10,7 +10,7 @@ from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
 from diagnostics import LineMap, Location, ParseError
-from store import Application, Function, Program, Type
+from store import Application, Entity, Function, Program, Type
 
 logger = logging.getLogger(__name__)
 
@@ -93,19 +93,8 @@ def parseTypeRef(ref_node: Cursor, program: Program) -> None:
         if entity.ast == node:
             return
 
-    typ = Type(node.spelling, node, program)
-
-    for n in node.walk_preorder():
-        if n.kind != CursorKind.CALL_EXPR and n.kind != CursorKind.TYPE_REF:
-            continue
-
-        n = n.get_definition()
-
-        if n is None or Path(str(n.location.file)) != program.path:
-            continue
-
-        typ.depends.add(n.spelling)
-
+    typ = Type(node.spelling, node, program, key=node.get_usr())
+    addDependencies(typ, node, program)
     program.entities.append(typ)
 
 
@@ -120,7 +109,7 @@ def parseFunction(ref_node: Cursor, program: Program) -> None:
         if entity.ast == node:
             return
 
-    function = Function(node.spelling, node, program)
+    function = Function(node.spelling, node, program, key=node.get_usr())
 
     for n in node.get_children():
         if n.kind != CursorKind.PARM_DECL:
@@ -131,18 +120,34 @@ def parseFunction(ref_node: Cursor, program: Program) -> None:
 
         function.parameters.append(n.spelling)
 
+    addDependencies(function, node, program)
+    program.entities.append(function)
+
+
+# The program's own functions and types entity's node calls or names, by key:
+# a member function's class for a call of it.  A call of one of the program's
+# function templates is kept apart for an error, should a kernel reach it.
+def addDependencies(entity: Entity, node: Cursor, program: Program) -> None:
+    members = [CursorKind.CONSTRUCTOR, CursorKind.DESTRUCTOR, CursorKind.CXX_METHOD, CursorKind.CONVERSION_FUNCTION]
+
     for n in node.walk_preorder():
         if n.kind != CursorKind.CALL_EXPR and n.kind != CursorKind.TYPE_REF:
             continue
 
-        n = n.get_definition()
-
-        if n is None or Path(str(n.location.file)) != program.path:
+        definition = n.get_definition()
+        if definition is None or Path(str(definition.location.file)) != program.path:
             continue
 
-        function.depends.add(n.spelling)
-
-    program.entities.append(function)
+        # A call resolves to the template's instantiation, which has arguments.
+        if definition.kind == CursorKind.FUNCTION_TEMPLATE or (
+            definition.kind == CursorKind.FUNCTION_DECL and definition.get_num_template_arguments() >= 0
+        ):
+            if isinstance(entity, Function):
+                entity.template_calls.append(n)
+        elif definition.kind in members:
+            entity.depends.add(definition.semantic_parent.get_usr())
+        else:
+            entity.depends.add(definition.get_usr())
 
 
 def parseLoops(translation_unit: TranslationUnit, program: Program) -> None:
@@ -436,7 +441,7 @@ def findLoopConsts(app: Application, program: Program, consts: Dict[str, OP.Cons
                     if definition is not None:
                         visit_function(definition)
                     else:
-                        for entity in app.findEntities(callee.spelling, program):
+                        for entity in app.findByKey(callee.get_usr(), program):
                             visit_function(entity.ast)
 
         for entity in app.findEntities(loop.kernel, program):

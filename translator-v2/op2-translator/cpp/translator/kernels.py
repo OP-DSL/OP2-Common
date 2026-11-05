@@ -26,6 +26,9 @@ def hasRuntimeDim(loop: OP.Loop) -> bool:
     )
 
 
+# The kernel's functions and types, each with a rewriter of its text.  A
+# function in a named namespace, or a call of a function template, is an
+# error: the text is written into the loop's own namespace, untemplated.
 def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[Entity, Rewriter]]:
     unprocessed_entities = list(entities)
     extracted_entities = []
@@ -36,10 +39,22 @@ def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[
         if safeFind(extracted_entities, lambda e: e[0] == entity):
             continue
 
+        if isinstance(entity, Function):
+            parent = entity.ast.semantic_parent
+            if parent is not None and parent.kind == CursorKind.NAMESPACE and parent.spelling:
+                raise OP.OpError(
+                    f"{entity.name}: kernel functions in a namespace are not supported: {parent.spelling}",
+                    sourceLocation(entity.ast, entity.program),
+                )
+            for call in entity.template_calls:
+                raise OP.OpError(
+                    f"{entity.name}: kernels may not call function templates: {tokenText(call)}",
+                    sourceLocation(call, entity.program),
+                )
+
         # In name order: a set's order changes from run to run.
-        for dependency in sorted(entity.depends):
-            dependency_entities = app.findEntities(dependency, entity.program)
-            unprocessed_entities.extend(dependency_entities)
+        dependencies = [d for key in entity.depends for d in app.findByKey(key, entity.program)]
+        unprocessed_entities.extend(sorted(dependencies, key=lambda d: (d.name, d.key)))
 
         rewriter = Rewriter(entity.program.source, [extentToSpan(entity.ast.extent)])
         extracted_entities.insert(0, (entity, rewriter))
@@ -95,23 +110,23 @@ def findCalled(func: Function, param_idx: int, funcs: List[Function]) -> List[Tu
     while len(stack) > 0:
         candidate_func, candidate_param_idx = stack.pop()
 
-        if candidate_func.name not in checked:
-            checked[candidate_func.name] = set()
-        elif candidate_param_idx in checked[candidate_func.name]:
+        if candidate_func.key not in checked:
+            checked[candidate_func.key] = set()
+        elif candidate_param_idx in checked[candidate_func.key]:
             continue
 
-        checked[candidate_func.name].add(candidate_param_idx)
+        checked[candidate_func.key].add(candidate_param_idx)
 
         for called_func, called_param_idx in findCalled2(candidate_func, candidate_param_idx, funcs):
-            if called_func.name in checked and called_param_idx in checked[called_func.name]:
+            if called_func.key in checked and called_param_idx in checked[called_func.key]:
                 continue
 
             stack.append((called_func, called_param_idx))
 
     called_list = []
-    for func_name, indicies in checked.items():
+    for func_key, indicies in checked.items():
         for index in indicies:
-            called_list.append((find(funcs, lambda f: f.name == func_name), index))
+            called_list.append((find(funcs, lambda f: f.key == func_key), index))
 
     return called_list
 
@@ -132,7 +147,7 @@ def findCalled2(func: Function, param_idx: int, funcs: List[Function]) -> List[T
         if callee is None:
             continue
 
-        callee_func = safeFind(funcs, lambda f: f.name == callee.spelling)
+        callee_func = safeFind(funcs, lambda f: f.key == callee.get_usr())
         if callee_func is None:
             continue
 
@@ -190,7 +205,7 @@ def insertStrides(
         entities = [(entity, rewriter)]
 
     funcs = [e for e, _ in entities if isinstance(e, Function)]
-    rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
+    rewriters = {e.key: r for e, r in entities if isinstance(e, Function)}
 
     for arg_idx in range(len(loop.args)):
         arg = loop.args[arg_idx]
@@ -210,7 +225,7 @@ def insertStrides(
             if param_idx >= len(func.parameters):
                 return
 
-            func_rewriter = rewriters.get(func.name)
+            func_rewriter = rewriters.get(func.key)
             if func_rewriter is None:
                 return
 
@@ -225,7 +240,7 @@ def insertStrides(
 # statement of its own; the argument may also be passed to a helper function
 # under the same rules.  Any other use of it is an error.  With hook, the
 # functions taking the argument are templates over it (the caller writes their
-# headers) and each call of one names it: the names of those functions.
+# headers) and each call of one names it: the keys of those functions.
 def insertIncrements(
     entity: Entity,
     loop: OP.Loop,
@@ -235,31 +250,31 @@ def insertIncrements(
     hook: Optional[str] = None,
 ) -> Set[str]:
     funcs = [e for e, _ in entities if isinstance(e, Function)]
-    rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
+    rewriters = {e.key: r for e, r in entities if isinstance(e, Function)}
 
     targets = argumentTargets(entity, loop, funcs, match)
     for func in funcs:
-        for param_idx in sorted(targets.get(func.name, set())):
-            rewriteIncrements(func, rewriters[func.name], param_idx, targets, loop, call)
+        for param_idx in sorted(targets.get(func.key, set())):
+            rewriteIncrements(func, rewriters[func.key], param_idx, targets, loop, call)
 
     # A helper that takes an increment target takes nothing else there.
     for func in funcs:
         params = parameters(func)
         for node in func.ast.walk_preorder():
             callee = node.referenced if node.kind == CursorKind.CALL_EXPR else None
-            if callee is None or callee.spelling not in targets:
+            if callee is None or callee.get_usr() not in targets:
                 continue
 
             if hook is not None:
                 name = stripImplicit(next(node.get_children()))
-                rewriters[func.name].update(extentToSpan(name.extent), lambda s: f"{s}<{hook}>")
+                rewriters[func.key].update(extentToSpan(name.extent), lambda s: f"{s}<{hook}>")
 
             for idx, arg in enumerate(node.get_arguments()):
                 arg = stripImplicit(arg)
-                if idx in targets[callee.spelling] and not (
+                if idx in targets[callee.get_usr()] and not (
                     arg.kind == CursorKind.DECL_REF_EXPR
                     and arg.referenced in params
-                    and params.index(arg.referenced) in targets.get(func.name, set())
+                    and params.index(arg.referenced) in targets.get(func.key, set())
                 ):
                     raise OP.OpError(
                         f"{func.name}: {callee.spelling} takes an OP_INC argument as its parameter {idx}, "
@@ -283,14 +298,14 @@ def insertPtrs(
     match: Callable[[OP.Arg], bool],
 ) -> None:
     funcs = [e for e, _ in entities if isinstance(e, Function)]
-    rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
+    rewriters = {e.key: r for e, r in entities if isinstance(e, Function)}
 
     targets = argumentTargets(entity, loop, funcs, match)
     read = argumentTargets(
         entity, loop, funcs, lambda arg: match(arg) and getattr(arg, "access_type", None) == OP.AccessType.READ
     )
     for func in funcs:
-        for param_idx in sorted(targets.get(func.name, set())):
+        for param_idx in sorted(targets.get(func.key, set())):
             param = parameters(func)[param_idx]
 
             def fail(node: Cursor, what: str, name: str = param.spelling, func: Function = func) -> None:
@@ -301,7 +316,7 @@ def insertPtrs(
                 )
 
             element = elementType(param)
-            if param_idx in read.get(func.name, set()) and element is not None and not element[1]:
+            if param_idx in read.get(func.key, set()) and element is not None and not element[1]:
                 raise OP.OpError(
                     f"{func.name}: parameter {param.spelling} takes an OP_READ argument, "
                     f"so it must point to const: {tokenText(param)}",
@@ -309,7 +324,7 @@ def insertPtrs(
                     (loop.loc, f"in the op_par_loop of {loop.kernel}"),
                 )
 
-            for _, parents, use_index, _ in ptrUses(func, rewriters[func.name], param, targets, fail):
+            for _, parents, use_index, _ in ptrUses(func, rewriters[func.key], param, targets, fail):
                 # &p[i] and &*p would be raw pointers without the stride.
                 outer = parents[enclosing(parents, use_index - 1)]
                 if outer.kind == CursorKind.UNARY_OPERATOR and operatorToken(outer).spelling == "&":
@@ -323,7 +338,7 @@ def argumentTargets(
     targets: Dict[str, Set[int]] = {}
     for arg_idx, arg in enumerate(loop.args):
         if match(arg):
-            mapParam(entity, arg_idx, funcs, lambda func, idx: targets.setdefault(func.name, set()).add(idx))
+            mapParam(entity, arg_idx, funcs, lambda func, idx: targets.setdefault(func.key, set()).add(idx))
 
     return targets
 
@@ -359,7 +374,7 @@ def ptrUses(
         if target.kind == CursorKind.CALL_EXPR:
             callee = target.referenced
             passed = {idx for idx, arg in enumerate(target.get_arguments()) if stripParens(arg)[0] == node}
-            if callee is None or not passed or not passed <= targets.get(callee.spelling, set()):
+            if callee is None or not passed or not passed <= targets.get(callee.get_usr(), set()):
                 fail(target, "a call takes it")
             continue
 
@@ -602,7 +617,7 @@ def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
             resolved = True
 
             for dependency in entity.depends:
-                if safeFind(entities, lambda e: e[0].name == dependency):
+                if safeFind(entities, lambda e: e[0].key == dependency):
                     resolved = False
                     break
 

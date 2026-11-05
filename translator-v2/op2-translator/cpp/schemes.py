@@ -267,7 +267,7 @@ class CppCuda(Scheme):
 
         ctk.updateFunctionTypes(
             extracted_entities,
-            lambda typ, func: f"{'template<typename op2_inc> ' if func.name in hooked else ''}__device__ {typ}",
+            lambda typ, func: f"{'template<typename op2_inc> ' if func.key in hooked else ''}__device__ {typ}",
         )
         ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
 
@@ -339,7 +339,7 @@ class CppOpenMP(Scheme):
         # Kernels inlined into each body that calls them, as openmp_f2c's are.
         ctk.updateFunctionTypes(
             extracted_entities,
-            lambda typ, func: f"{'template<typename op2_inc> ' if func.name in hooked else ''}"
+            lambda typ, func: f"{'template<typename op2_inc> ' if func.key in hooked else ''}"
             f"__attribute__((always_inline)){'' if ctk.declaredInline(func) else ' inline'} {typ}",
         )
 
