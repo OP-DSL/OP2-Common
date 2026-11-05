@@ -25,9 +25,11 @@ void Loop::run(const tune::Autotuner::Decision& decision, const Call& call) {
 }
 
 void wait_halos(const Call& call) {
-    op_profile_next("MPI Wait");
+    if (call.profiled)
+        op_profile_next("MPI Wait");
     op_mpi_wait_all(call.args);
-    op_profile_next("Kernel");
+    if (call.profiled)
+        op_profile_next("Kernel");
 }
 
 void Loop::check_dats(std::span<const op_arg> args) {
@@ -58,30 +60,44 @@ void Loop::invoke(op_set set, std::span<op_arg> args) {
             m_types.push_back(element_type(type.c_str()));
         }
     check_dats(args);
-    op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
-                            m_profile_variant.c_str());
-    op_profile_enter("MPI Exchanges");
+    // Below the level that times them a scope's calls only count its depth.
+    auto level = op_profile::instance().get_level();
+    bool timed = level >= op_profile_level::kernel;
+    bool profiled = level >= op_profile_level::kernel_detailed;
+    if (timed)
+        op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
+                                m_profile_variant.c_str());
+    if (profiled)
+        op_profile_enter("MPI Exchanges");
     int n_exec = m_executor->exchange_halos(set, args);
 
     if (n_exec > 0) {
-        op_profile_next("Init");
-        const Call call{set, args, n_exec, m_direct};
+        if (profiled)
+            op_profile_next("Init");
+        const Call call{set, args, n_exec, m_direct, profiled};
         auto decision = decide(call);
 
-        op_profile_next("Computation");
-        op_profile_enter("Kernel");
+        if (profiled) {
+            op_profile_next("Computation");
+            op_profile_enter("Kernel");
+        }
         run(decision, call);
-        op_profile_exit();
+        if (profiled)
+            op_profile_exit();
     } else {
-        op_profile_next("MPI Wait");
+        if (profiled)
+            op_profile_next("MPI Wait");
         op_mpi_wait_all(args);
     }
 
-    op_profile_next("MPI Reduce");
+    if (profiled)
+        op_profile_next("MPI Reduce");
     reduce_mpi_globals(args, m_types, m_name.c_str());
     m_executor->mark_dirty(args);
-    op_profile_exit();
-    op_profile_exit();
+    if (profiled)
+        op_profile_exit();
+    if (timed)
+        op_profile_exit();
 }
 
 } // namespace op::rt::loop

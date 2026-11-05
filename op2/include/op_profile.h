@@ -154,6 +154,9 @@ public:
   /* Sets the timing level (only before calling start()) - see op_profile_level */
   void set_level(const op_profile_level new_level);
 
+  /* The timing level in effect, OP_PROFILE_LEVEL's once start() has run */
+  op_profile_level get_level() const { return level; }
+
   /* Initialises timing (with application name), required unless level set to disabled */
   void start(std::string_view name);
 

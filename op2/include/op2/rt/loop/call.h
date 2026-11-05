@@ -79,11 +79,16 @@ public:
     // Direct, or indirect with the owned elements apart when it reduces a
     // global.
     Sections sections;
+    // Whether the profile times the scopes inside the call's kernel scope
+    // (OP_PROFILE_LEVEL 3): its halo wait and its globals' combine.
+    bool profiled = false;
 
-    Call(op_set set_, std::span<op_arg> args_, int run_size_, bool direct)
+    Call(op_set set_, std::span<op_arg> args_, int run_size_, bool direct,
+         bool profiled_ = false)
         : set{set_}, args{args_}, run_size{run_size_},
           sections{direct ? Sections::direct(set_)
-                          : Sections::indirect(set_, global_reduction(), run_size_)} {}
+                          : Sections::indirect(set_, global_reduction(), run_size_)},
+          profiled{profiled_} {}
 
     // Any active global argument reduced across the set.
     bool global_reduction() const;
