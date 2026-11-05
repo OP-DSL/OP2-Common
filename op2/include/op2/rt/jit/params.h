@@ -118,26 +118,22 @@ constexpr std::uint64_t statistics_window = 32;
 
 // A loop's parameters, in the order its generated code registers them,
 // and per configuration of the loop the statistics of those whose mode may
-// move: a baked parameter that takes more than OP_JIT_MAX_VALUES values
-// moves to run time, and a run-time READ global is baked in once at least
-// 32 calls, four in five of them with one value, have taken no more values
-// than that since the value took the lead; each parameter moves at most once
-// each way.  So each parameter costs at most OP_JIT_MAX_VALUES builds, each
-// once its value is asked for OP_JIT_MIN_CALLS times.
+// move: a parameter is baked in while it takes at most OP_JIT_MAX_VALUES
+// values, a baked one moving to run time at its next value and a run-time
+// READ global baked in after 32 calls with no more values than that; each
+// moves at most once each way.  So each parameter costs at most
+// OP_JIT_MAX_VALUES builds, each once its value is asked for
+// OP_JIT_MIN_CALLS times.
 class ParamSet {
 private:
     // One parameter's statistics under one configuration.
     struct History {
-        // The latest value, and the distinct values since it was baked in
-        // (a run-time global's since its leading value took the lead), up to
-        // one past OP_JIT_MAX_VALUES.
+        // The latest value, and the distinct values since it was baked in,
+        // or a run-time global's in its current 32 calls, up to one past
+        // OP_JIT_MAX_VALUES.
         std::uint64_t last = 0;
         std::vector<std::uint64_t> values;
-        // The value most calls have had, its calls and all calls since it
-        // took the lead.
-        std::uint64_t candidate = 0;
-        std::uint64_t hits = 0;
-        std::uint64_t total = 0;
+        std::uint64_t calls = 0;
         ParamMode mode = ParamMode::baked;
         bool seen = false;
         bool promoted = false;

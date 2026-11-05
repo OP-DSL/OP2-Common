@@ -167,9 +167,7 @@ bool ParamSet::History::observe(const Param& param, const Options& options) {
         seen = true;
         last = hash;
         values.assign(1, hash);
-        candidate = hash;
-        hits = 1;
-        total = 1;
+        calls = 1;
         mode = param.initial();
         return false;
     }
@@ -187,19 +185,13 @@ bool ParamSet::History::observe(const Param& param, const Options& options) {
         return true;
     }
 
-    if (demoted || promoted || !param.global())
+    if (demoted || promoted || !param.global() || ++calls < statistics_window)
         return false;
-    if (hash == candidate)
-        ++hits;
-    else if (2 * hits <= total) {
-        candidate = hash;
-        hits = 1;
-        total = 0;
+    if (values.size() > limit) {
         values.assign(1, hash);
-    }
-    ++total;
-    if (total < statistics_window || 5 * hits < 4 * total || values.size() > limit)
+        calls = 0;
         return false;
+    }
     mode = ParamMode::baked;
     promoted = true;
     values.assign(1, hash);

@@ -588,7 +588,7 @@ The following environment variables can be set at run time to control OP2 behavi
    * - ``OP_TIME_THREADS``
      - Read at *translation* time, by the legacy C translator's OpenMP generator (``translator/c``) only: set, it times each OpenMP thread, so ``op_timings_to_csv`` breaks its output down per thread (and per thread per rank for MPI+OpenMP).  ``op_init`` accepts it without a warning.
    * - ``OP_JIT_LEVEL``
-     - JIT-compiled (``cuda`` / ``hip``, ``cuda_f2c`` / ``hip_f2c``) kernels specialised on their parameters. ``0`` builds none and runs the offline kernels. ``1`` bakes in the structural parameters (block size, strides, dimensions) and the constants, and gives ``OP_READ`` globals at run time; a constant that takes more than ``OP_JIT_MAX_VALUES`` values moves to run time. ``2`` (default) also bakes in an ``OP_READ`` global that four in five calls agree on. Replaces ``OP_JIT_ENABLE``.
+     - JIT-compiled (``cuda`` / ``hip``, ``cuda_f2c`` / ``hip_f2c``) kernels specialised on their parameters. ``0`` builds none and runs the offline kernels. ``1`` bakes in the structural parameters (block size, strides, dimensions) and the constants, and gives ``OP_READ`` globals at run time; a constant that takes more than ``OP_JIT_MAX_VALUES`` values moves to run time. ``2`` (default) also bakes in an ``OP_READ`` global that takes at most ``OP_JIT_MAX_VALUES`` values in 32 calls. Replaces ``OP_JIT_ENABLE``.
    * - ``OP_JIT_FORCE``
      - Set to ``1`` to specialise every kernel; by default only those whose offline kernel uses more registers than ``OP_JIT_MIN_REGISTERS`` (32), or that have no offline kernel.
    * - ``OP_JIT_MIN_REGISTERS``
@@ -602,7 +602,7 @@ The following environment variables can be set at run time to control OP2 behavi
    * - ``OP_JIT_DEBUG``
      - Set to ``1`` to print each build and each parameter that moves between baked in and run time, and to synchronise after every launch.
    * - ``OP_JIT_MAX_VALUES``
-     - Integer, default 8. Values a baked parameter may take for one loop configuration; its next value moves it to run time for the rest of the run, so each parameter costs at most this many kernel builds.
+     - Integer, default 8. Values a baked parameter may take for one loop configuration; its next value moves it to run time for the rest of the run, so each parameter costs at most this many kernel builds. Also the most values an ``OP_READ`` global may take in 32 calls to be baked in.
    * - ``OP_JIT_MAX_GBL_BYTES``, ``OP_JIT_MAX_CONST_BYTES``
      - Integers, default 4096 and 16384. The largest ``OP_READ`` global and constant baked in; larger ones stay at run time.
    * - ``OP_JIT_RUNTIME_PARAMS``, ``OP_JIT_CONSTANT_PARAMS``

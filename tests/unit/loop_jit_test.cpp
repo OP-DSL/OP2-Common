@@ -350,8 +350,8 @@ void test_modes() {
 }
 
 // A constant that takes more than OP_JIT_MAX_VALUES values moves to run
-// time, and a global most calls agree on is baked in, each once, by its
-// configuration's statistics; the key follows the modes.
+// time, and a global that takes no more in 32 calls is baked in, each once,
+// by its configuration's statistics; the key follows the modes.
 void test_statistics() {
     policy({});
     std::array<op_set_core, 6> sets{};
@@ -423,17 +423,18 @@ void test_statistics() {
     next(0);
     CHECK(params[0].mode() == runtime);
 
-    // Nine calls in ten agreeing is a majority; two in three is not.
+    // Values are counted, not shares: a flag set in one call in ten, or in
+    // one in three, is baked in alike.
     for (int i = 0; i < 32; ++i) {
         value = i % 10 == 9 ? 1.0 : 2.0;
         next(2);
     }
     CHECK(params[1].mode() == baked);
-    for (int i = 0; i < 64; ++i) {
+    for (int i = 0; i < 32; ++i) {
         value = i % 3 == 2 ? 1.0 : 2.0;
         next(3);
     }
-    CHECK(params[1].mode() == runtime);
+    CHECK(params[1].mode() == baked);
 
     // Values are counted, not changes: a constant cycling through eight
     // values every call stays baked, however long; a ninth value moves it.
@@ -447,7 +448,7 @@ void test_statistics() {
     CHECK(params[0].mode() == runtime);
 
     // A global that varies, then settles, is baked in once it has: its values
-    // count from its settled value taking the lead.
+    // are counted afresh every 32 calls.
     for (int i = 0; i < 40; ++i) {
         value = 10.0 + i;
         next(5);
@@ -459,8 +460,7 @@ void test_statistics() {
     CHECK(params[1].mode() == baked);
 
     // Each configuration's modes as the reports read them: c moved to run
-    // time on sets 0 and 4, g baked in on sets 2, 4 and 5 and moved on 1, 2,
-    // 4 and 5.
+    // time on sets 0 and 4, g baked in on sets 2 to 5 and moved on 1 to 5.
     std::size_t c_moved = 0, g_baked = 0, g_moved = 0;
     auto configurations = params.configurations();
     CHECK(configurations.size() == 6);
@@ -475,7 +475,7 @@ void test_statistics() {
             }
         }
     }
-    CHECK(c_moved == 2 && g_baked == 3 && g_moved == 4);
+    CHECK(c_moved == 2 && g_baked == 4 && g_moved == 5);
 }
 
 // A READ global of any dimension is read in place with the call's
