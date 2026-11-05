@@ -116,6 +116,7 @@ struct ExchangeContext {
     // OP2's private communicator, the sparse exchange's, so a receive the
     // application posts on its own communicator cannot take a halo message. The
     // tags are clear of the ones the sparse exchange and exchange_rows use.
+    // Found at op_init, which every rank runs.
     MPI_Comm comm = MPI_COMM_NULL;
     static constexpr int tag_ini = 0x7000;
     static constexpr int tag_max = 0x8000;
@@ -161,9 +162,6 @@ struct ExchangeContext {
         this->device = device;
         this->exec = exec;
 
-        // Every rank resets for every exchange, so the communicator is created
-        // collectively if halo creation has not already made it.
-        comm = op::mpi::detail::comm_state(OP_MPI_WORLD).comm;
         tag++;
         if (tag >= ExchangeContext::tag_max) tag = ExchangeContext::tag_ini;
 
@@ -390,16 +388,17 @@ ExchangeContext& ctx = *new ExchangeContext;
 
 using namespace op::mpi;
 
-// MPI time is charged to the kernel being run, and the args are checked under
-// OP_diags.
+// MPI time is charged to the kernel being run when the legacy timings keep
+// one, and the args are checked under OP_diags.
 int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
     if (OP_diags > 0) {
         int dummy;
         for (int n = 0; n < nargs; ++n)
             op_arg_check(set, n, args[n], &dummy, "halo exchange");
     }
-    double cpu_start, wall_start, cpu_end, wall_end;
-    op_timers_core(&cpu_start, &wall_start);
+    double cpu_start = 0, wall_start = 0, cpu_end = 0, wall_end = 0;
+    if (OP_kern_max > 0)
+        op_timers_core(&cpu_start, &wall_start);
 
     if (ctx.unwaited != nullptr)
         unpaired(std::string("the halo exchange on set '") + ctx.unwaited->name + "' was never waited for");
@@ -443,15 +442,17 @@ int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
 
     ctx.prepare_and_gather();
 
-    op_timers_core(&cpu_end, &wall_end);
-    if (OP_kern_max > 0)
+    if (OP_kern_max > 0) {
+        op_timers_core(&cpu_end, &wall_end);
         OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
+    }
     return size;
 }
 
 void op_mpi_wait_all(int, op_arg *) {
-    double cpu_start, wall_start, cpu_end, wall_end;
-    op_timers_core(&cpu_start, &wall_start);
+    double cpu_start = 0, wall_start = 0, cpu_end = 0, wall_end = 0;
+    if (OP_kern_max > 0)
+        op_timers_core(&cpu_start, &wall_start);
 
     if (ctx.unwaited == nullptr)
         unpaired("a wait with no halo exchange to wait for");
@@ -459,9 +460,10 @@ void op_mpi_wait_all(int, op_arg *) {
     ctx.exchange_and_scatter();
     ctx.unwaited = nullptr;
 
-    op_timers_core(&cpu_end, &wall_end);
-    if (OP_kern_max > 0)
+    if (OP_kern_max > 0) {
+        op_timers_core(&cpu_end, &wall_end);
         OP_kernels[OP_kern_curr].mpi_time += wall_end - wall_start;
+    }
 }
 
 void op_mpi_test_all(int, op_arg *) {
@@ -469,6 +471,7 @@ void op_mpi_test_all(int, op_arg *) {
 }
 
 void op_mpi_halo_exchanges_init() {
+    ctx.comm = op::mpi::detail::comm_state(OP_MPI_WORLD).comm;
     ctx.host_backend = make_host_backend();
     ctx.device_backend = make_device_backend();
 }
