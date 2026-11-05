@@ -215,11 +215,6 @@ void from_json(const json& j, op_profile_node& node) {
 
 /* ----------------------------------------- op_profile ----------------------------------------- */
 
-op_profile& op_profile::instance() {
-  static auto timing = op_profile{};
-  return timing;
-}
-
 void op_profile::read_environment() {
   int value = static_cast<int>(level);
   if (op::env::parse_number("OP_PROFILE_LEVEL", value, 0,
@@ -251,20 +246,7 @@ void op_profile::start(std::string_view name) {
   current_starts.push_back(op_profile_clock::clock::now());
 }
 
-void op_profile::enter(std::string_view name, bool sync) {
-  if (level == op_profile_level::disabled) return;
-
-  assert(started && !finished);
-  assert(current_scope.size() > 0);
-
-  // Check if we should actually start a timer
-  if (extra_depth > 0 ||
-      (level < op_profile_level::kernel_detailed &&
-       current_scope.back().get().type == op_profile_node_type::kernel)) {
-    extra_depth++;
-    return;
-  }
-
+void op_profile::enter_timed(std::string_view name, bool sync) {
   auto& parent = current_scope.back().get();
   auto& node = parent.get_child(name);
 
@@ -274,17 +256,8 @@ void op_profile::enter(std::string_view name, bool sync) {
   current_starts.push_back(op_profile_clock::clock::now());
 }
 
-void op_profile::enter_kernel(std::string_view name, std::string_view target, std::string_view variant) {
-  if (level == op_profile_level::disabled) return;
-
-  assert(started && !finished);
-  assert(current_scope.size() > 0);
-
-  if (level < op_profile_level::kernel) {
-    extra_depth++;
-    return;
-  }
-
+void op_profile::enter_kernel_timed(std::string_view name, std::string_view target,
+                                    std::string_view variant) {
   auto full_name = std::string(name);
 
   full_name += "/"; full_name += target;
@@ -295,22 +268,7 @@ void op_profile::enter_kernel(std::string_view name, std::string_view target, st
   current_scope.back().get().type = op_profile_node_type::kernel;
 }
 
-void op_profile::next(std::string_view name) {
-  exit();
-  enter(name, false);
-}
-
-void op_profile::exit(bool sync) {
-  if (level == op_profile_level::disabled) return;
-
-  assert(started && !finished);
-  assert(current_scope.size() > 0);
-
-  if (extra_depth > 0) {
-    extra_depth--;
-    return;
-  }
-
+void op_profile::exit_timed(bool sync) {
   if (sync) deviceSync();
 
   auto& node = current_scope.back().get();

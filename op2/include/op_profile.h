@@ -3,6 +3,7 @@
 
 #include <extern/json.hpp>
 
+#include <cassert>
 #include <chrono>
 #include <optional>
 #include <functional>
@@ -144,9 +145,17 @@ private:
   bool finished = false;
   bool combined = false;
 
+  /* The slow paths of enter, enter_kernel and exit: a section the level times */
+  void enter_timed(std::string_view name, bool sync);
+  void enter_kernel_timed(std::string_view name, std::string_view target, std::string_view variant);
+  void exit_timed(bool sync);
+
 public:
   /* Returns the singleton timing instance */
-  static op_profile& instance();
+  static op_profile& instance() {
+    static op_profile timing;
+    return timing;
+  }
 
   /* Reads OP_PROFILE_LEVEL and OP_PROFILE_JSON_OUTPUT; op_init calls it */
   void read_environment();
@@ -154,23 +163,59 @@ public:
   /* Sets the timing level (only before calling start()) - see op_profile_level */
   void set_level(const op_profile_level new_level);
 
-  /* The timing level in effect, OP_PROFILE_LEVEL's once start() has run */
-  op_profile_level get_level() const { return level; }
-
   /* Initialises timing (with application name), required unless level set to disabled */
   void start(std::string_view name);
 
-  /* Enter a timing section, starting the timer for the section. Sync controls if deviceSync() will be called */
-  void enter(std::string_view name, bool sync = true);
+  /* Enter a timing section, starting the timer for the section. Sync controls if deviceSync() will be called.
+   * Inline, as are enter_kernel, next and exit: a section the level does not time only counts its depth. */
+  void enter(std::string_view name, bool sync = true) {
+    if (level == op_profile_level::disabled) return;
+
+    assert(started && !finished);
+    assert(current_scope.size() > 0);
+
+    if (extra_depth > 0 ||
+        (level < op_profile_level::kernel_detailed &&
+         current_scope.back().get().type == op_profile_node_type::kernel)) {
+      extra_depth++;
+      return;
+    }
+    enter_timed(name, sync);
+  }
 
   /* Enter a kernel section - called by translator-generated kernels, don't call manually */
-  void enter_kernel(std::string_view name, std::string_view target, std::string_view variant);
+  void enter_kernel(std::string_view name, std::string_view target, std::string_view variant) {
+    if (level == op_profile_level::disabled) return;
+
+    assert(started && !finished);
+    assert(current_scope.size() > 0);
+
+    if (level < op_profile_level::kernel) {
+      extra_depth++;
+      return;
+    }
+    enter_kernel_timed(name, target, variant);
+  }
 
   /* Helper to stop the previous section, and start a new one, equivalent to exit() then enter(name) */
-  void next(std::string_view name);
+  void next(std::string_view name) {
+    exit();
+    enter(name, false);
+  }
 
   /* Finish a kernel section, recording elapsed time. Sync controls if deviceSync() will be called */
-  void exit(bool sync = true);
+  void exit(bool sync = true) {
+    if (level == op_profile_level::disabled) return;
+
+    assert(started && !finished);
+    assert(current_scope.size() > 0);
+
+    if (extra_depth > 0) {
+      extra_depth--;
+      return;
+    }
+    exit_timed(sync);
+  }
 
   /* End timing, closing all remaining open sections. */
   void finish();

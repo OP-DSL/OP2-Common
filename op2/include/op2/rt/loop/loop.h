@@ -36,11 +36,9 @@ void run_phases(const Call& call, const Phases& phases, Phase&& phase, Combine&&
             wait_halos(call);
         phase(index);
         if (index == phases.globals_after && call.writes_globals()) {
-            if (call.profiled)
-                op_profile_next("Process GBLs");
+            op_profile::instance().next("Process GBLs");
             combine();
-            if (call.profiled)
-                op_profile_next("Kernel");
+            op_profile::instance().next("Kernel");
         }
     }
     if (phases.count == phases.wait_before)
