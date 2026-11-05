@@ -260,8 +260,21 @@ class Loop:
 
             dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
             self.dats.append(dat)
-        elif self.dats[dat_id].dim is None and dat_dim is not None:
-            self.dats[dat_id] = dataclasses.replace(self.dats[dat_id], dim=dat_dim)
+        else:
+            dat = self.dats[dat_id]
+            if dat.typ != dat_typ or dat.soa != dat_soa or (None not in [dat.dim, dat_dim] and dat.dim != dat_dim):
+
+                def what(dim: Optional[int], typ: Type, soa: bool) -> str:
+                    return f"{typ}{':soa' if soa else ''}" + (f" of dim {dim}" if dim is not None else "")
+
+                raise OpError(
+                    f"{dat_ptr} is passed as {what(dat_dim, dat_typ, dat_soa)} here, "
+                    f"but as {what(dat.dim, dat.typ, dat.soa)} by an earlier argument",
+                    loc,
+                )
+
+            if dat.dim is None and dat_dim is not None:
+                self.dats[dat_id] = dataclasses.replace(dat, dim=dat_dim)
 
         map_id = None
         if map_ptr is not None:

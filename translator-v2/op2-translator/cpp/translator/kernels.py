@@ -266,7 +266,8 @@ def insertIncrements(
 # Pass each matched argument as an op::rt::kernel::Ptr, which carries its stride,
 # through every helper it reaches.  A use is p[i], *p, or a pass to a helper
 # whose parameter is a Ptr there, which may take a raw pointer (a local
-# array, at stride 1) at another call; any other use of it is an error.
+# array, at stride 1) at another call; any other use of it is an error, and
+# so is a parameter an OP_READ argument reaches that does not point to const.
 def insertPtrs(
     entity: Entity,
     loop: OP.Loop,
@@ -277,6 +278,9 @@ def insertPtrs(
     rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
 
     targets = argumentTargets(entity, loop, funcs, match)
+    read = argumentTargets(
+        entity, loop, funcs, lambda arg: match(arg) and getattr(arg, "access_type", None) == OP.AccessType.READ
+    )
     for func in funcs:
         for param_idx in sorted(targets.get(func.name, set())):
             param = parameters(func)[param_idx]
@@ -285,6 +289,15 @@ def insertPtrs(
                 raise OP.OpError(
                     f"{func.name}: argument {name} may only be indexed, but {what}: {tokenText(node)}",
                     sourceLocation(node, func.program),
+                    (loop.loc, f"in the op_par_loop of {loop.kernel}"),
+                )
+
+            element = elementType(param)
+            if param_idx in read.get(func.name, set()) and element is not None and not element[1]:
+                raise OP.OpError(
+                    f"{func.name}: parameter {param.spelling} takes an OP_READ argument, "
+                    f"so it must point to const: {tokenText(param)}",
+                    sourceLocation(param, func.program),
                     (loop.loc, f"in the op_par_loop of {loop.kernel}"),
                 )
 
@@ -320,16 +333,12 @@ def ptrUses(
     fail: Callable[[Cursor, str], None],
     skip: Set[int] = frozenset(),
 ) -> Iterator[Tuple[Cursor, Tuple[Cursor, ...], int, bool]]:
-    typ = param.type.get_canonical()
-    if typ.kind == TypeKind.POINTER:
-        element = typ.get_pointee()
-    elif typ.kind in [TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY]:
-        element = typ.element_type
-    else:
+    element = elementType(param)
+    if element is None:
         fail(param, "it is not a pointer")
 
     name = param.spelling
-    rewriter.update(extentToSpan(param.extent), lambda _: f"op::rt::kernel::Ptr<{element.spelling}> {name}")
+    rewriter.update(extentToSpan(param.extent), lambda _: f"op::rt::kernel::Ptr<{element[0]}> {name}")
 
     for node, parents in walkWithParents(func.ast):
         if node.kind != CursorKind.DECL_REF_EXPR or node.hash in skip:
@@ -352,6 +361,20 @@ def ptrUses(
             yield target, parents, use_index, True
         else:
             fail(target, "it is used as a pointer")
+
+
+# The type param points to and whether it is const, or None if param is no
+# pointer or array.  libclang keeps an array's const on the array, not on
+# its element type.
+def elementType(param: Cursor) -> Optional[Tuple[str, bool]]:
+    typ = param.type.get_canonical()
+    if typ.kind == TypeKind.POINTER:
+        return typ.get_pointee().spelling, typ.get_pointee().is_const_qualified()
+    if typ.kind in [TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY]:
+        const = typ.is_const_qualified()
+        return ("const " if const else "") + typ.element_type.spelling, const
+
+    return None
 
 
 def parameters(func: Function) -> List[Cursor]:

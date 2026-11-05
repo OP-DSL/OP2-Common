@@ -3,6 +3,10 @@
 #include <op_lib_core.h>
 #include <op_profile.h>
 
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+
 namespace op::rt::loop {
 
 tune::Autotuner::Decision Loop::decide(const Call& call) {
@@ -26,7 +30,35 @@ void wait_halos(const Call& call) {
     op_profile_next("Kernel");
 }
 
+void Loop::check_dats(std::span<const op_arg> args) {
+    if (m_elem_sizes.size() != args.size())
+        for (const auto& arg : args) {
+            std::string type = arg.argtype == OP_ARG_DAT && arg.type != nullptr ? arg.type : "";
+            if (type.ends_with(":soa"))
+                type.resize(type.size() - 4);
+            auto element = element_type(type.c_str());
+            bool word = element == abi::ElementType::f32 || element == abi::ElementType::i32;
+            m_elem_sizes.push_back(element == abi::ElementType::f64 ? 8 : word ? 4 : 0);
+        }
+
+    for (std::size_t i = 0; i < args.size(); ++i) {
+        const auto& arg = args[i];
+        if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.dat == nullptr)
+            continue;
+        if (arg.dim != arg.dat->dim ||
+            (m_elem_sizes[i] != 0 && m_elem_sizes[i] * arg.dim != arg.dat->size)) {
+            std::fprintf(stderr,
+                         "error: argument %zu of %s passes dat %s, of dim %d and %d-byte "
+                         "elements, as dim %d of %s\n",
+                         i, m_name.c_str(), arg.dat->name, arg.dat->dim,
+                         arg.dat->size / arg.dat->dim, arg.dim, arg.type);
+            std::exit(1);
+        }
+    }
+}
+
 void Loop::invoke(op_set set, std::span<op_arg> args) {
+    check_dats(args);
     op_profile_enter_kernel(m_name.c_str(), m_profile_target.c_str(),
                             m_profile_variant.c_str());
     op_profile_enter("MPI Exchanges");

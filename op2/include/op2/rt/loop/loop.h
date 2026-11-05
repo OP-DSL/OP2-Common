@@ -20,6 +20,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 
 namespace op::rt::loop {
 
@@ -76,6 +77,13 @@ private:
     std::unique_ptr<Executor> m_executor;
     Ladder m_ladder;
     std::optional<tune::Autotuner> m_tuner;
+    // Per argument, the element size its type names for a dat, or 0 when
+    // unknown: resolved on the first call.
+    std::vector<int> m_elem_sizes;
+
+    // Stop the run on a dat argument whose dim or element size is not its
+    // dat's, which the kernel would read past or between elements.
+    void check_dats(std::span<const op_arg> args);
 
     // A call's decision: the parameters take its values, and the ladder
     // selects, or with a tuner the tuner chooses, asking the ladder when it

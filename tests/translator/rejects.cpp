@@ -1,9 +1,10 @@
 // A loop the cuda target refuses to translate, the case chosen by -D: each
 // misuses a kernel argument, which the target passes as an op::rt::kernel::Ptr
-// (an OP_INC one only to increment), an info argument that doesn't match its
-// maximum, a map index a legacy target needs as a constant, a non-constant
-// const dim, a recursive helper, an include that isn't there, or an info
-// argument, which the legacy GPU targets don't support.
+// (an OP_INC one only to increment, an OP_READ one to const), an info
+// argument that doesn't match its maximum, one dat passed as two types, a map
+// index a legacy target needs as a constant, a non-constant const dim, a
+// recursive helper, an include that isn't there, or an info argument, which
+// the legacy GPU targets don't support.
 
 #include <cstring>
 
@@ -42,6 +43,10 @@ void kernel(const double *q, double *r, double *p) {
 #endif
 }
 
+#if defined(READ_NOT_CONST)
+void copy(double *q, double *r) { r[0] = q[0]; }
+#endif
+
 #if defined(INFO_DIM) || defined(INFO_REF) || defined(LEGACY_INFO)
 void extreme(const double *q, double *max, int *loc) {
     for (int d = 0; d < 2; ++d)
@@ -66,7 +71,16 @@ int main(int argc, char **argv) {
                 op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
                 op_arg_dat(r_dat, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_dat, 0, map, 1, "double", OP_INC));
-#if defined(RUNTIME_INDEX)
+#if defined(READ_NOT_CONST)
+    op_par_loop(copy, "copy", edges,
+                op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
+                op_arg_dat(r_dat, -1, OP_ID, 1, "double", OP_WRITE));
+#elif defined(CONFLICTING_DAT)
+    op_par_loop(kernel, "kernel", edges,
+                op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
+                op_arg_dat(q_dat, -1, OP_ID, 1, "float", OP_WRITE),
+                op_arg_dat(p_dat, 0, map, 1, "double", OP_INC));
+#elif defined(RUNTIME_INDEX)
     int k = argc - 1;
     op_par_loop(kernel, "kernel", edges,
                 op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),

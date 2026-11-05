@@ -29,4 +29,14 @@ if(TARGET op2_openmp)
     target_link_libraries(cpu_strategy_test PRIVATE op2_openmp)
     add_test(NAME cpu_strategy_test COMMAND cpu_strategy_test)
     set_tests_properties(cpu_strategy_test PROPERTIES LABELS "unit")
+
+    # A dat argument of the wrong dim or element type stops the run.
+    add_executable(dat_check_test dat_check_test.cpp)
+    target_link_libraries(dat_check_test PRIVATE op2_openmp)
+    add_test(NAME dat_check_dim COMMAND dat_check_test dim)
+    add_test(NAME dat_check_type COMMAND dat_check_test type)
+    set_tests_properties(dat_check_dim PROPERTIES LABELS "unit" PASS_REGULAR_EXPRESSION
+        "error: argument 0 of check passes dat q, of dim 2 and 8-byte elements, as dim 1 of double")
+    set_tests_properties(dat_check_type PROPERTIES LABELS "unit" PASS_REGULAR_EXPRESSION
+        "error: argument 0 of check passes dat q, of dim 2 and 8-byte elements, as dim 2 of float")
 endif()
