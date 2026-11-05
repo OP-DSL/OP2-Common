@@ -388,7 +388,7 @@ void test_jit_report() {
     auto summary = jit_summary(op::rt::context().jit);
     CHECK(summary.rfind("JIT summary:\n", 0) == 0);
     CHECK(summary.find("3 kernels built for 1 loop, 1 failed, 2 not built (asked for "
-                       "fewer than 9 times)\n") != std::string::npos);
+                       "fewer than 8 times)\n") != std::string::npos);
     CHECK(summary.find("1 loop with parameters that may move: 2 configurations, 1 "
                        "settled") != std::string::npos);
     CHECK(summary.find("  flux_jit  3 (1 failed)               2        1  "

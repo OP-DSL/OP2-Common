@@ -162,9 +162,11 @@ void ParamSet::observe(const loop::Call& call) {
 
 bool ParamSet::History::observe(const Param& param, const Options& options) {
     std::uint64_t hash = param.hash();
+    auto limit = static_cast<std::size_t>(options.max_values);
     if (!seen) {
         seen = true;
         last = hash;
+        values.assign(1, hash);
         candidate = hash;
         hits = 1;
         total = 1;
@@ -172,12 +174,13 @@ bool ParamSet::History::observe(const Param& param, const Options& options) {
         return false;
     }
 
-    unsigned change = hash != last ? 1u : 0u;
-    changed += static_cast<int>(change) - static_cast<int>(changes >> 31);
-    changes = (changes << 1) | change;
+    // One past the limit decides, so no more are recorded.
+    if (hash != last && values.size() <= limit &&
+        std::ranges::find(values, hash) == values.end())
+        values.push_back(hash);
     last = hash;
     if (mode == ParamMode::baked) {
-        if (changed <= options.varying)
+        if (values.size() <= limit)
             return false;
         mode = ParamMode::runtime;
         demoted = true;
@@ -192,14 +195,14 @@ bool ParamSet::History::observe(const Param& param, const Options& options) {
         candidate = hash;
         hits = 1;
         total = 0;
+        values.assign(1, hash);
     }
     ++total;
-    if (total < statistics_window || 5 * hits < 4 * total || changed > options.varying)
+    if (total < statistics_window || 5 * hits < 4 * total || values.size() > limit)
         return false;
     mode = ParamMode::baked;
     promoted = true;
-    changes = 0;
-    changed = 0;
+    values.assign(1, hash);
     return true;
 }
 

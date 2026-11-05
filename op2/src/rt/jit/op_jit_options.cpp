@@ -20,7 +20,7 @@ Options read_options() {
         op_printf("Forcing JIT compilation of every kernel\n");
     env::parse_number("OP_JIT_MIN_CALLS", options.min_calls);
     env::parse_number("OP_JIT_MAX_THREADS", options.max_threads, 1);
-    env::parse_number("OP_JIT_VARYING", options.varying);
+    env::parse_number("OP_JIT_MAX_VALUES", options.max_values);
     env::parse_number("OP_JIT_MAX_GBL_BYTES", options.max_gbl_bytes);
     env::parse_number("OP_JIT_MAX_CONST_BYTES", options.max_const_bytes);
     env::parse_list("OP_JIT_RUNTIME_PARAMS", options.runtime_params);

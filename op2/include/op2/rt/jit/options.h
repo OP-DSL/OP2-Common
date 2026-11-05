@@ -20,13 +20,13 @@ struct Options {
     bool debug = false;        // OP_JIT_DEBUG: print builds and moves, sync launches
     // OP_JIT_MIN_CALLS: times a key is asked for before its build starts, so
     // values that change every call never build.
-    int min_calls = 9;
+    int min_calls = 8;
     // OP_JIT_MAX_THREADS: builds under way at once on the run's build pool,
     // across every cache; the backend's default when unset.
     std::optional<int> max_threads;
-    // OP_JIT_VARYING: changes within a baked value's last 32 calls past
-    // which it moves to run time for the rest of the run.
-    int varying = 8;
+    // OP_JIT_MAX_VALUES: values a baked parameter may take under a
+    // configuration; the next moves it to run time for the rest of the run.
+    int max_values = 8;
     // OP_JIT_MAX_GBL_BYTES, OP_JIT_MAX_CONST_BYTES: the largest READ global
     // and constant baked in; larger ones stay at run time.
     int max_gbl_bytes = 4096;

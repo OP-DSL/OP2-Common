@@ -349,13 +349,13 @@ void test_modes() {
     CHECK(modes() == "r b* b r b ");
 }
 
-// A constant that keeps changing moves to run time, and a global most calls
-// agree on is baked in, each once, by its configuration's statistics; the
-// key follows the modes.
+// A constant that takes more than OP_JIT_MAX_VALUES values moves to run
+// time, and a global most calls agree on is baked in, each once, by its
+// configuration's statistics; the key follows the modes.
 void test_statistics() {
     policy({});
-    std::array<op_set_core, 5> sets{};
-    for (int i = 0; i < 5; ++i) {
+    std::array<op_set_core, 6> sets{};
+    for (int i = 0; i < 6; ++i) {
         sets[i].name = "set";
         sets[i].index = i;
         sets[i].size = 10 * (i + 1);
@@ -380,13 +380,13 @@ void test_statistics() {
         return params.key(call, {});
     };
 
-    // Nine changes in 32 calls move the constant to run time, for good.
-    for (int i = 0; i < 9; ++i) {
+    // A ninth value moves the constant to run time, for good.
+    for (int i = 0; i < 8; ++i) {
         constant = i;
         next(0);
         CHECK(params[0].mode() == baked);
     }
-    constant = 9.0;
+    constant = 8.0;
     auto key = next(0);
     CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
     // A run-time value is no part of the key.
@@ -397,7 +397,8 @@ void test_statistics() {
     CHECK(params[0].mode() == runtime && params[1].mode() == runtime);
 
     // A global invariant for 32 calls of another configuration is baked in,
-    // the constant there still baked; varying, it moves back for good.
+    // the constant there still baked; taking a ninth value since, it moves
+    // back for good.
     value = 5.0;
     for (int i = 0; i < 31; ++i) {
         next(1);
@@ -407,7 +408,7 @@ void test_statistics() {
     CHECK(params[1].mode() == baked);
     value = 6.0;
     CHECK(next(1) != key);
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < 6; ++i) {
         value = 7.0 + i;
         next(1);
         CHECK(params[1].mode() == baked);
@@ -434,25 +435,35 @@ void test_statistics() {
     }
     CHECK(params[1].mode() == runtime);
 
-    // A change stops counting as it leaves the 32-call window: a change in
-    // every four calls keeps a constant baked, one in every three does not.
+    // Values are counted, not changes: a constant cycling through eight
+    // values every call stays baked, however long; a ninth value moves it.
     for (int i = 0; i < 128; ++i) {
-        constant = i / 4;
+        constant = i % 8;
         next(4);
         CHECK(params[0].mode() == baked);
     }
-    for (int i = 0; i < 32; ++i) {
-        constant = -1.0 - i / 3;
-        next(4);
-    }
+    constant = 100.0;
+    next(4);
     CHECK(params[0].mode() == runtime);
 
+    // A global that varies, then settles, is baked in once it has: its values
+    // count from its settled value taking the lead.
+    for (int i = 0; i < 40; ++i) {
+        value = 10.0 + i;
+        next(5);
+        CHECK(params[1].mode() == runtime);
+    }
+    value = 3.0;
+    for (int i = 0; i < 64; ++i)
+        next(5);
+    CHECK(params[1].mode() == baked);
+
     // Each configuration's modes as the reports read them: c moved to run
-    // time on sets 0 and 4, g baked in on sets 2 and 4 and moved on 1, 2
-    // and 4.
+    // time on sets 0 and 4, g baked in on sets 2, 4 and 5 and moved on 1, 2,
+    // 4 and 5.
     std::size_t c_moved = 0, g_baked = 0, g_moved = 0;
     auto configurations = params.configurations();
-    CHECK(configurations.size() == 5);
+    CHECK(configurations.size() == 6);
     for (const auto& configuration : configurations) {
         CHECK(configuration.params.size() == 2);
         for (const auto& outcome : configuration.params) {
@@ -464,7 +475,7 @@ void test_statistics() {
             }
         }
     }
-    CHECK(c_moved == 2 && g_baked == 2 && g_moved == 3);
+    CHECK(c_moved == 2 && g_baked == 3 && g_moved == 4);
 }
 
 // A READ global of any dimension is read in place with the call's
