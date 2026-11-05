@@ -365,7 +365,7 @@ class FortranCudaF2C(Scheme):
         def match_gbl(arg):
             return isinstance(arg, OP.ArgGbl)
 
-        # Each strategy's generated code defines op2_dat_inc: atomic or plain.
+        # An indirect increment through the kernel's hook (OP.Loop.incHook).
         ftk.insertAtomicIncs(
             kernel_entity,
             [kernel_entity] + dependencies,
@@ -375,7 +375,7 @@ class FortranCudaF2C(Scheme):
             call="op2_dat_inc",
         )
 
-        # A global every element adds to, through op2_gbl_inc: always atomic.
+        # A global every element adds to: always atomically.
         if config["gbl_inc_atomic"]:
             ftk.insertAtomicIncs(
                 kernel_entity,
@@ -389,7 +389,7 @@ class FortranCudaF2C(Scheme):
         info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
         setattr(loop, "const_types", info.consts);
 
-        return ftk_c.translate(info)
+        return ftk_c.translate(info, hooked=True)
 
 
 Scheme.register(FortranCudaF2C)
@@ -460,7 +460,7 @@ class FortranOpenMPF2C(Scheme):
             const_rename = lambda const: f"op2_const_{const}"
             ftk.renameConsts(self.lang, [kernel_entity] + dependencies, app, const_rename)
 
-        # Each strategy's generated code defines op2_dat_inc: atomic or plain.
+        # An indirect increment through the kernel's hook (OP.Loop.incHook).
         ftk.insertAtomicIncs(
             kernel_entity,
             [kernel_entity] + dependencies,
@@ -471,7 +471,7 @@ class FortranOpenMPF2C(Scheme):
         )
 
         info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
-        return ftk_c.translate(info)
+        return ftk_c.translate(info, hooked=True)
 
 
 Scheme.register(FortranOpenMPF2C)

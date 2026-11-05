@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 import op as OP
 from language import Lang
@@ -242,11 +242,8 @@ class CppCuda(Scheme):
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
-        def indirect_inc(arg: OP.Arg) -> bool:
-            return isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.INC
-
-        # A global OP_INC incremented in place through op2_gbl_inc: every thread
-        # adds to the one copy, so it is atomic under any strategy.
+        # A global OP_INC incremented in place: every thread adds to the one
+        # copy, so it is atomic under any strategy.
         def atomic_gbl_inc(arg: OP.Arg) -> bool:
             return config["gbl_inc_atomic"] and isinstance(arg, OP.ArgGbl) and arg.access_type == OP.AccessType.INC
 
@@ -255,16 +252,23 @@ class CppCuda(Scheme):
         def ptr_arg(arg: OP.Arg) -> bool:
             return (
                 isinstance(arg, (OP.ArgDat, OP.ArgGbl, OP.ArgInfo))
-                and not indirect_inc(arg)
+                and not OP.indirectInc(arg)
                 and not atomic_gbl_inc(arg)
             )
 
+        # An indirect increment through the kernel's hook (OP.Loop.incHook).
+        hooked: Set[str] = set()
         for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            ctk.insertIncrements(entity, loop, extracted_entities, indirect_inc)
-            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op2_gbl_inc")
+            hooked |= ctk.insertIncrements(
+                entity, loop, extracted_entities, OP.indirectInc, call="op2_inc::add", hook="op2_inc"
+            )
+            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op::rt::kernel::atomic_inc")
             ctk.insertPtrs(entity, loop, extracted_entities, ptr_arg)
 
-        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
+        ctk.updateFunctionTypes(
+            extracted_entities,
+            lambda typ, func: f"{'template<typename op2_inc> ' if func.name in hooked else ''}__device__ {typ}",
+        )
         ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
 
         return ctk.writeSource(extracted_entities)
@@ -320,21 +324,23 @@ class CppOpenMP(Scheme):
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
-        def indirect_inc(arg: OP.Arg) -> bool:
-            return isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.INC
-
         # Every other dat, global and info argument is an op::rt::kernel::Ptr too.
         def ptr_arg(arg: OP.Arg) -> bool:
-            return isinstance(arg, (OP.ArgDat, OP.ArgGbl, OP.ArgInfo)) and not indirect_inc(arg)
+            return isinstance(arg, (OP.ArgDat, OP.ArgGbl, OP.ArgInfo)) and not OP.indirectInc(arg)
 
+        # An indirect increment through the kernel's hook (OP.Loop.incHook).
+        hooked: Set[str] = set()
         for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            ctk.insertIncrements(entity, loop, extracted_entities, indirect_inc)
+            hooked |= ctk.insertIncrements(
+                entity, loop, extracted_entities, OP.indirectInc, call="op2_inc::add", hook="op2_inc"
+            )
             ctk.insertPtrs(entity, loop, extracted_entities, ptr_arg)
 
         # Kernels inlined into each body that calls them, as openmp_f2c's are.
         ctk.updateFunctionTypes(
             extracted_entities,
-            lambda typ, func: f"__attribute__((always_inline)){'' if ctk.declaredInline(func) else ' inline'} {typ}",
+            lambda typ, func: f"{'template<typename op2_inc> ' if func.name in hooked else ''}"
+            f"__attribute__((always_inline)){'' if ctk.declaredInline(func) else ' inline'} {typ}",
         )
 
         return ctk.writeSource(extracted_entities)

@@ -1,7 +1,7 @@
 #pragma once
 
-// The increments a translated kernel's op2_dat_inc and op2_gbl_inc hooks are
-// defined as, on the host and on the device: in place, or atomically.
+// The increments a translated kernel applies, on the host and on the device:
+// in place, or atomically, and the hooks a kernel is instantiated with.
 
 #include <op2/rt/kernel/prelude.h>
 
@@ -11,10 +11,8 @@
 
 namespace op::rt::kernel {
 
-// A translated kernel applies each indirect increment through op2_dat_inc,
-// which every strategy's generated code defines as one of these.  The plain form
-// keeps Fortran's x = x + e conversion; the atomic one converts e first, as
-// atomicAdd's operand type requires.
+// The plain form keeps Fortran's x = x + e conversion; the atomic one
+// converts e first, as atomicAdd's operand type requires.
 template<typename T, typename U>
 OP_KERNEL_DEVICE inline void plain_inc(T& target, U value) {
     target = static_cast<T>(target + value);
@@ -53,5 +51,19 @@ OP_KERNEL_DEVICE inline void atomic_inc(T& target, U value) {
 }
 
 #endif
+
+// A translated kernel that takes an indirect OP_INC argument is a template over
+// its increment hook, op2_inc, and applies each increment of it as
+// op2_inc::add(target, value): in place where no other thread updates the
+// target meanwhile, atomically where one may.
+struct PlainInc {
+    template<typename T, typename U>
+    OP_KERNEL_DEVICE static void add(T& target, U value) { plain_inc(target, value); }
+};
+
+struct AtomicInc {
+    template<typename T, typename U>
+    OP_KERNEL_DEVICE static void add(T& target, U value) { atomic_inc(target, value); }
+};
 
 } // namespace op::rt::kernel

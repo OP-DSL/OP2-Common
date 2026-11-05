@@ -28,7 +28,8 @@ Executor::Executor(const abi::gpu::Loop& descriptor, op::rt::jit::ParamSet& para
                    op::rt::Context& context)
     : m_descriptor{descriptor}, m_params{params}, m_context{context},
       m_backend{gpu::backend(context)},
-      m_compiler{descriptor.name, descriptor.headers, m_backend.device.arch} {
+      m_compiler{descriptor.name, descriptor.translated, descriptor.headers,
+                 m_backend.device.arch} {
     m_params.set_dat_stride(&dat_stride);
     for (const auto& param : descriptor.params)
         add_param(param);

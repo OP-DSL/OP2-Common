@@ -34,43 +34,10 @@
     increments in registers until its colour's turn. -#}
 {%- set chunk_colouring_parallel = groups.chunk_colouring.args|reject("inc")|reject("read")|list|length == 0 -%}
 
-{#- The increment hook each strategy's kernel applies: plain, in place, or
-    atomic; the translated kernel is written once per hook. -#}
-{%- set hook_of = {"plain": "plain", "colouring": "plain", "chunk_colouring": "plain",
-                   "atomics": "atomic", "chunk_atomics": "atomic"} -%}
-{%- set hooks = namespace(offline=[], all=[]) -%}
-{%- for strategy in strategies -%}
-    {%- if hook_of[strategy] not in hooks.all -%}
-        {%- set hooks.all = hooks.all + [hook_of[strategy]] -%}
-    {%- endif -%}
-    {%- if strategy in offline_strategies and hook_of[strategy] not in hooks.offline -%}
-        {%- set hooks.offline = hooks.offline + [hook_of[strategy]] -%}
-    {%- endif -%}
-{%- endfor -%}
-
-{#- How a hook applies the translated kernel's increments: an indirect dat's
-    through op2_dat_inc, and under gbl_inc_atomic a global's, which every
-    thread adds to the one copy of, through op2_gbl_inc. -#}
-{%- macro inc_hook(hook) -%}
-template<typename T, typename U>
-static __device__ inline void op2_dat_inc(T& target, U value) {
-    op::rt::kernel::{{hook}}_inc(target, value);
-}
-template<typename T, typename U>
-static __device__ inline void op2_gbl_inc(T& target, U value) {
-    op::rt::kernel::atomic_inc(target, value);
-}
-{%- endmacro -%}
-
-{#- The translated kernel, in a namespace of its own for each hook named. -#}
-{%- macro kernel_namespaces(names) -%}
-    {%- for hook in names %}
-namespace op2_s_{{hook}} {
-{{inc_hook(hook)}}
-{{kernel_func}}}
-
-    {% endfor -%}
-{%- endmacro -%}
+{#- The increment hook each strategy instantiates the translated kernel with
+    (op2/rt/kernel/inc.h): in place, or atomic. -#}
+{%- set hook_of = {"plain": "PlainInc", "colouring": "PlainInc", "chunk_colouring": "PlainInc",
+                   "atomics": "AtomicInc", "chunk_atomics": "AtomicInc"} -%}
 
 {%- macro dat_dim(dat) -%}
     {%- if dat.dim is not none -%}
@@ -185,7 +152,7 @@ int idx = n{{" + 1" if abi.index_base}};
 {% for arg in lh.args|idx|indirect %}
 int idx{{arg.id}} = {{map_lookup(arg)}}{{" + 1" if abi.index_base}};
 {% endfor %}
-op2_s_{{hook_of[strategy]}}::{{lh.kernel}}(
+op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}{{"<op::rt::kernel::%s>" % hook_of[strategy] if lh.incHook()}}(
 {% for arg in lh.args %}
     {{arg_value(arg, jit, staged, local)}}{{"," if not loop.last}}
 {% endfor %}
@@ -217,7 +184,9 @@ int op2_dim_dat{{dat.id}};
 {{arg.typ.c()}} op2_gbl{{arg.id}};
 {% endfor %}
 
-{{kernel_namespaces(hooks.offline)}}
+{% if offline_strategies %}
+{{kernel_func}}
+{% endif %}
 }
 
 {#- Whether any argument in a staged group is active for this launch. -#}
@@ -417,15 +386,13 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% endif %}
 {% endmacro %}
 
-{% for hook in hooks.all %}
-const char op2_k_{{lh.name}}{{variant}}_{{hook}}_translated[] = R"_op2_k(
+const char op2_k_{{lh.name}}{{variant}}_translated[] = R"_op2_k(
 namespace op2_m_{{lh.name}}{{variant}} {
 
-{{kernel_namespaces([hook])}}
+{{kernel_func}}
 }
 )_op2_k";
 
-{% endfor %}
 {% for strategy in strategies %}
     {% if strategy in offline_strategies %}
 {{kernel_wrapper(strategy)}}
@@ -541,8 +508,7 @@ static const op::rt::abi::gpu::Family op2_k_{{lh.name}}{{variant}}_families[] = 
     {{"{{"}}"{{strategy}}", {{"op::rt::abi::ArgGroups{op2_k_%s%s_%s_groups, %d}" % (lh.name, variant, strategy, groups[strategy].dats|length) if strategy in chunk_strategies else "{}"}}},
      "op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper",
      {{"(const void *)op2_k_%s%s_%s_wrapper" % (lh.name, variant, strategy) if strategy in offline_strategies else "nullptr"}},
-     op2_k_{{lh.name}}{{variant}}_{{strategy}}_src,
-     op2_k_{{lh.name}}{{variant}}_{{hook_of[strategy]}}_translated},
+     op2_k_{{lh.name}}{{variant}}_{{strategy}}_src},
 {% endfor %}
 };
 
@@ -554,7 +520,8 @@ static op::rt::abi::gpu::Loop op2_k_{{lh.name}}{{variant}}_loop{
     {{bound.items|length or 1}},
     &op2_k_{{lh.name}}{{variant}}_bind,
     &op::rt::kernel::gpu::calls,
-    OP_KERNEL_JIT_HEADERS};
+    OP_KERNEL_JIT_HEADERS,
+    op2_k_{{lh.name}}{{variant}}_translated};
 
 {{abi.entry()}}
     op_set set,

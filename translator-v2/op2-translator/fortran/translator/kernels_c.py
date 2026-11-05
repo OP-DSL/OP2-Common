@@ -138,6 +138,8 @@ class Info:
 
     entry_subprogram: Optional[str] = None
     subprograms: Dict[str, SubprogramInfo] = field(default_factory=dict)
+    # Those templates over the kernel's increment hook.
+    hooked: Set[str] = field(default_factory=set)
 
     def functionNames(self) -> List[str]:
         return [s.name for s in self.subprograms.values() if s.isFunction()]
@@ -470,9 +472,9 @@ def resolveParamAccessesLocal(ctx: Context) -> None:
             param.is_const = False
 
 
-# The increment hooks insertAtomicIncs inserts, which the generated code
-# defines: op2_dat_inc for each strategy, op2_gbl_inc always atomic.
-increment_hooks = {"op2_dat_inc", "op2_gbl_inc"}
+# The increment hooks insertAtomicIncs inserts, as the C++ they call: an
+# indirect dat's through the kernel's hook, a global's always atomically.
+increment_hooks = {"op2_dat_inc": "op2_inc::add", "op2_gbl_inc": "op::rt::kernel::atomic_inc"}
 
 
 def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
@@ -507,7 +509,17 @@ def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
     return None
 
 
-def translate(info: Info) -> str:
+# The kernel's subprograms as C++.  With hooked, those an indirect OP_INC
+# argument reaches are templates over the kernel's increment hook, op2_inc
+# (OP.Loop.incHook), which every call of one names.
+def translate(info: Info, hooked: bool = False) -> str:
+    if hooked:
+        info.hooked = {
+            sub_info.name
+            for sub_info in info.subprograms.values()
+            if any(param.op_arg is not None and OP.indirectInc(param.op_arg) for param in sub_info.params)
+        }
+
     decls = ""
     srcs = ""
 
@@ -554,7 +566,8 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
     else:
         prefix = ""
 
-    src_decl  = f"static {prefix}{return_type} {ctx.sub_info.name}(\n    "
+    template = "template<typename op2_inc>\n" if ctx.sub_info.name in ctx.info.hooked else ""
+    src_decl  = f"{template}static {prefix}{return_type} {ctx.sub_info.name}(\n    "
     src_decl += ",\n    ".join(param_decls) + "\n)"
 
     src = src_decl + " "
@@ -714,11 +727,17 @@ def translateAssignmentStmt(assignment_stmt: f2003.Assignment_Stmt, ctx: Context
 
 def translateCallStmt(call_stmt: f2003.Call_Stmt, ctx: Context) -> str:
     call_target = translateGeneric(call_stmt.items[0], ctx)
+    callee = increment_hooks.get(call_target) or calleeName(call_target, ctx)
     if call_stmt.items[1] is None:
-        return f"{call_target}();\n"
+        return f"{callee}();\n"
     else:
         actual_arg_spec_list = call_stmt.items[1]
-        return f"{call_target}({translateArgList(list(actual_arg_spec_list.items), ctx, call_target)});\n"
+        return f"{callee}({translateArgList(list(actual_arg_spec_list.items), ctx, call_target)});\n"
+
+
+# A subprogram as a call names it: with the kernel's hook if a template over it.
+def calleeName(name: str, ctx: Context) -> str:
+    return f"{name}<op2_inc>" if name in ctx.info.hooked else name
 
 
 def translateContinueStmt(continue_stmt: f2003.Continue_Stmt, ctx: Context) -> str:
@@ -929,7 +948,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
         ctx.error("Part-ref has no subscript list", part_ref)
 
     if name in ctx.info.functionNames():
-        return f"{name}({translateArgList(subscript_list.children, ctx, name)})"
+        return f"{calleeName(name, ctx)}({translateArgList(subscript_list.children, ctx, name)})"
 
     if len(subscript_list.children) == 0:
         ctx.error("Unexpected zero-length part-ref subscript list", part_ref)

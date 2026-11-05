@@ -225,8 +225,9 @@ op2/rt/kernel/prelude.h        (what a translated kernel compiles against:
                                 Ptr, Span, the Fortran intrinsics; no
                                 includes)
 op2/rt/kernel/inc.h            (includes: op2/rt/kernel/prelude.h; the
-                                increment hooks, in place or atomic, on the
-                                host and the device)
+                                increments, in place or atomic, on the host
+                                and the device, and the hooks a translated
+                                kernel is instantiated with)
 op2/rt/kernel/staging.h        (includes: op2/rt/abi/staging.h,
                                 op2/rt/kernel/inc.h,
                                 op2/rt/kernel/prelude.h; a chunk's regions
@@ -450,9 +451,9 @@ op2/rt/gpu/kernel.h        (includes: op2/gpu/shims.h,
                             from src/rt/gpu/op_gpu_kernel.cpp)
 op2/rt/gpu/jit.h           (includes: op2/rt/abi/gpu/descriptor.h,
                             op2/rt/gpu/kernel.h, op2/rt/jit/params.h; the
-                            JIT mechanism: NVRTC or hipRTC compiles of a
-                            family's translated kernel and source after the
-                            embedded headers, its run-time parameters as
+                            JIT mechanism: NVRTC or hipRTC compiles of the
+                            loop's translated kernel and a family's source
+                            after the embedded headers, its run-time parameters as
                             wrapper arguments or module symbols; from
                             src/rt/gpu/op_gpu_jit.cpp)
 op2/rt/gpu/chunk_plan.h    (includes: op2/rt/abi/staging.h,

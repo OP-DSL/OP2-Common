@@ -219,19 +219,21 @@ def insertStrides(
         mapParam(entity, arg_idx, funcs, applyStride, dat.id, is_vec)
 
 # Route each increment of a matched argument through call(target, value),
-# by default op2_dat_inc, which each strategy's generated code defines, and pass
-# the argument as an op::rt::kernel::Ptr, which carries its stride.  An increment is p[i] += e, p[i] -= e,
-# ++p[i], p[i]--, p[i] = p[i] + e - f (a chain of + and - led by p[i]) or
-# p[i] = e + p[i] (*p for p[0]) as a statement of its own; the argument may
-# also be passed to a helper function under the same rules.  Any other use of
-# it is an error.
+# and pass the argument as an op::rt::kernel::Ptr, which carries its stride.  An
+# increment is p[i] += e, p[i] -= e, ++p[i], p[i]--, p[i] = p[i] + e - f (a
+# chain of + and - led by p[i]) or p[i] = e + p[i] (*p for p[0]) as a
+# statement of its own; the argument may also be passed to a helper function
+# under the same rules.  Any other use of it is an error.  With hook, the
+# functions taking the argument are templates over it (the caller writes their
+# headers) and each call of one names it: the names of those functions.
 def insertIncrements(
     entity: Entity,
     loop: OP.Loop,
     entities: List[Tuple[Entity, Rewriter]],
     match: Callable[[OP.Arg], bool],
-    call: str = "op2_dat_inc",
-) -> None:
+    call: str,
+    hook: Optional[str] = None,
+) -> Set[str]:
     funcs = [e for e, _ in entities if isinstance(e, Function)]
     rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
 
@@ -248,6 +250,10 @@ def insertIncrements(
             if callee is None or callee.spelling not in targets:
                 continue
 
+            if hook is not None:
+                name = stripImplicit(next(node.get_children()))
+                rewriters[func.name].update(extentToSpan(name.extent), lambda s: f"{s}<{hook}>")
+
             for idx, arg in enumerate(node.get_arguments()):
                 arg = stripImplicit(arg)
                 if idx in targets[callee.spelling] and not (
@@ -261,6 +267,8 @@ def insertIncrements(
                         sourceLocation(node, func.program),
                         (loop.loc, f"in the op_par_loop of {loop.kernel}"),
                     )
+
+    return set(targets)
 
 
 # Pass each matched argument as an op::rt::kernel::Ptr, which carries its stride,

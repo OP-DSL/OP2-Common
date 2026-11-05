@@ -9,10 +9,12 @@
     updated dats. -#}
 {%- set groups = config.chunk_groups -%}
 
-{#- The kernel increments through op2_dat_inc: atomically under atomics, in
+{#- The range runs, each with the increment hook it instantiates the
+    translated kernel with (op2/rt/kernel/inc.h): atomic under atomics, in
     place under every other strategy, whose increments reach memory no other
     thread updates meanwhile. -#}
 {%- set hooks = ["plain"] + (["atomic"] if "atomics" in strategies else []) -%}
+{%- set hook_type = {"plain": "PlainInc", "atomic": "AtomicInc"} -%}
 
 {%- macro dat_dim(dat) -%}
 {{dat.dim if dat.dim is not none else "dat%s_dim" % dat.id}}
@@ -60,15 +62,15 @@ op::rt::kernel::Ptr{ {{-global_address(arg)-}} }
     {%- endif -%}
 {%- endmacro -%}
 
-{#- One call of the translated kernel for element n. -#}
-{%- macro kernel_call(mode) -%}
+{#- One call of the translated kernel for element n, with hook. -#}
+{%- macro kernel_call(mode, hook) -%}
 {% if lh.args|idx|direct|length > 0 %}
 int idx = n{{" + 1" if abi.index_base}};
 {% endif %}
 {% for arg in lh.args|idx|indirect %}
 int idx{{arg.id}} = {{map_lookup(arg)}}{{" + 1" if abi.index_base}};
 {% endfor %}
-kernel::{{lh.kernel}}(
+op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}{{"<op::rt::kernel::%s>" % hook_type[hook] if lh.incHook()}}(
 {% for arg in lh.args %}
     {{arg_value(arg, mode)}}{{"," if not loop.last}}
 {% endfor %}
@@ -125,18 +127,7 @@ opt{{arg.id}}{{" || " if not loop.last}}
 
 namespace op2_m_{{lh.name}}{{variant}} {
 
-{% for hook in hooks %}
-namespace op2_s_{{hook}} {
-
-template<typename T, typename U>
-static inline void op2_dat_inc(T& target, U value) {
-    op::rt::kernel::{{hook}}_inc(target, value);
-}
-
 {{kernel_func|trim}}
-}
-
-{% endfor %}
 }
 
 {#- The runs: each reads the arguments, then hands its skeleton
@@ -146,7 +137,6 @@ static inline void op2_dat_inc(T& target, U value) {
 template<bool op2_ordered>
 static void op2_k_{{lh.name}}{{variant}}_range_{{hook}}(const op::rt::abi::cpu::Range& op2_range,
                                                 op_arg *args) {
-    namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_{{hook}};
 {{prologue()}}
     op::rt::kernel::cpu::range<op2_ordered>(op2_range, [&]([[maybe_unused]] const op::rt::abi::cpu::Thread& op2_thread) {
 {% if args_per_thread %}
@@ -156,7 +146,7 @@ static void op2_k_{{lh.name}}{{variant}}_range_{{hook}}(const op::rt::abi::cpu::
 {% if wrapper_locals %}
             {{wrapper_locals|indent(8)}}
 {% endif %}
-            {{kernel_call("range")|indent(12)}}
+            {{kernel_call("range", hook)|indent(12)}}
         };
     });
 }
@@ -167,7 +157,6 @@ static void op2_k_{{lh.name}}{{variant}}_range_{{hook}}(const op::rt::abi::cpu::
     applies its elements in place. -#}
 static void op2_k_{{lh.name}}{{variant}}_chunk_colouring(const op::rt::abi::cpu::Chunk& op2_chunks,
                                                   op_arg *args) {
-    namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
 {{prologue()}}
     op::rt::kernel::cpu::chunks<true>(op2_chunks, [&]([[maybe_unused]] const op::rt::abi::cpu::Thread& op2_thread) {
 {% if args_per_thread %}
@@ -178,7 +167,7 @@ static void op2_k_{{lh.name}}{{variant}}_chunk_colouring(const op::rt::abi::cpu:
             {{wrapper_locals|indent(8)}}
 {% endif %}
             for (int n = op2_begin; n < op2_end; ++n) {
-                {{kernel_call("range")|indent(16)}}
+                {{kernel_call("range", "plain")|indent(16)}}
             }
         };
     });
@@ -191,7 +180,6 @@ static void op2_k_{{lh.name}}{{variant}}_chunk_colouring(const op::rt::abi::cpu:
     other threads' chunks may share it. -#}
 static void op2_k_{{lh.name}}{{variant}}_chunk_atomics(const op::rt::abi::cpu::Chunk& op2_chunks,
                                                 op_arg *args) {
-    namespace kernel = op2_m_{{lh.name}}{{variant}}::op2_s_plain;
 {{prologue()}}
     const int stride = op2_chunks.staging.stride;
     const op::rt::abi::StageWord *const stage_words = op2_chunks.staging.stage_words;
@@ -221,7 +209,7 @@ static void op2_k_{{lh.name}}{{variant}}_chunk_atomics(const op::rt::abi::cpu::C
             {% endfor %}
 
             for (int n = op2_begin; n < op2_end; ++n) {
-                {{kernel_call("staged")|indent(16)}}
+                {{kernel_call("staged", "plain")|indent(16)}}
             }
 
             {% for dat_id in groups.chunk_atomics.dats %}

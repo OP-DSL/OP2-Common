@@ -23,6 +23,7 @@ namespace op::rt::gpu {
 class Compiler {
 private:
     std::string m_loop;
+    const char *m_translated;
     abi::gpu::JitHeaders m_headers;
     std::string m_arch;
 
@@ -42,10 +43,11 @@ public:
         std::unique_ptr<JitKernel> operator()();
     };
 
-    // The compiler of loop's kernels from headers, for arch, NVRTC's
-    // architecture flag (empty under HIP).
-    Compiler(std::string_view loop, abi::gpu::JitHeaders headers, std::string_view arch)
-        : m_loop{loop}, m_headers{headers}, m_arch{arch} {}
+    // The compiler of loop's kernels, each family's source after translated,
+    // from headers, for arch, NVRTC's architecture flag (empty under HIP).
+    Compiler(std::string_view loop, const char *translated, abi::gpu::JitHeaders headers,
+             std::string_view arch)
+        : m_loop{loop}, m_translated{translated}, m_headers{headers}, m_arch{arch} {}
 
     // The job that builds family's kernel with the parameters' current values
     // and the strategy's, by slot, baked in, or at run time as their modes say.

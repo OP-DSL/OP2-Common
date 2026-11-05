@@ -61,9 +61,9 @@ The ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`` and ``openmp_f2c`` 
     The *backends*: each composes the planning blocks under its own limits and encodings (``op2/rt/gpu/chunk_plan.h``, ``op2/rt/cpu/chunk_plan.h``), declares its strategy families and their axes as ``op_init`` runs, and launches the kernels, compiling JIT ones with NVRTC or hipRTC (GPU) or running host threads (CPU).
 
 ``kernel/``
-    What a translated kernel compiles against, offline or JIT: ``prelude.h`` (the pointer and array wrappers and the Fortran intrinsics) and ``strategy.h`` (the increment hooks ``op2_inc`` resolves to and the chunked strategies' staging helpers).
+    What a translated kernel compiles against, offline or JIT: ``prelude.h`` (the pointer and array wrappers and the Fortran intrinsics), ``inc.h`` (the increments and the hooks a kernel is instantiated with, ``PlainInc`` and ``AtomicInc``) and ``staging.h`` (the chunked strategies' staging helpers).
 
-The translator emits, per loop, the translated kernel once per strategy namespace with that strategy's ``op2_inc``, a wrapper per strategy (the chunked ones as JIT source only), and a registration of every valid strategy, its argument groups and the parameters the JIT may specialise on; the runtime does the rest.  Each increment of an indirect ``OP_INC`` argument becomes an ``op2_inc`` call, so the kernel is the same for every strategy.
+The translator emits, per loop, the translated kernel once, and once more as the JIT's text; a wrapper per strategy (the chunked ones as JIT source only); and a registration of every valid strategy, its argument groups and the parameters the JIT may specialise on; the runtime does the rest.  A kernel that takes an indirect ``OP_INC`` argument is a template over its increment hook, ``op2_inc``, as is each helper the argument reaches: each increment of the argument becomes an ``op2_inc::add`` call, and each strategy's wrapper instantiates the kernel with its hook, in place or atomic.
 
 Terms that mean more than one thing elsewhere:
 

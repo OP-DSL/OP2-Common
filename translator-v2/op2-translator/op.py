@@ -206,6 +206,12 @@ class ArgInfo(Arg):
         return f"ArgInfo(id={self.id}, loc={self.loc}, ptr={self.ptr}, dim={self.dim}, typ={self.typ}, ref={self.ref})"
 
 
+# An indirect OP_INC argument: each strategy increments it through the
+# kernel's hook, in place or atomically.
+def indirectInc(arg: Arg) -> bool:
+    return isinstance(arg, ArgDat) and arg.map_id is not None and arg.access_type == AccessType.INC
+
+
 class Loop:
     name: str
 
@@ -343,6 +349,11 @@ class Loop:
 
     def addConst(self, const: str) -> None:
         self.consts.setdefault(const, None)
+
+    # Whether the translated kernel is a template over its increment hook
+    # (op2/rt/kernel/inc.h): it takes an indirect OP_INC argument.
+    def incHook(self) -> bool:
+        return any(indirectInc(arg) for arg in self.args)
 
     def arg(self, x: Union[Dat, int]) -> Optional[Arg]:
         if isinstance(x, Dat):
