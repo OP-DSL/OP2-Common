@@ -2,16 +2,18 @@ import os
 from math import ceil
 from typing import Optional
 
-from jinja2 import Environment, FileSystemLoader, pass_context
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, pass_context
 
 import op as OP
 from fortran.translator.kernels_c import FArray, FCharacter
 
-# Jinja configuration
+# Jinja configuration.  A template reading a name nothing defines fails,
+# rather than rendering it empty.
 env = Environment(
     loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "../resources/templates")),
     lstrip_blocks=True,
     trim_blocks=True,
+    undefined=StrictUndefined,
 )
 
 env.tests["farray"] = lambda type_: isinstance(type_, FArray)
