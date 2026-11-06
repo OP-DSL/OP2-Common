@@ -43,7 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <op_gpu_shims.h>
+#include <op2/gpu/shims.h>
 #include <op2/env.h>
 #include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
@@ -339,7 +339,7 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     cutilSafeCall(gpuFree(test));
 
-    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
+    // No L1-preferring cache config: it starves kernels staging in shared memory.
 
     int deviceId = -1;
     cutilSafeCall(gpuGetDevice(&deviceId));
