@@ -66,8 +66,6 @@ dat{{arg.dat_id}} + n{{(" * %d" % lh.dat(arg).dim) if lh.dat(arg) is not soa}}
 arg{{arg.id}}_vec
     {%- elif arg is inc and config.atomics -%}
 arg{{arg.id}}_{{arg.map_idx}}_local
-    {%- elif arg is info -%}
-&dummy_info_{{arg.id}}
     {%- else -%}
 dat{{arg.dat_id}} + {{map_lookup(arg)}}
     {%- endif -%}
@@ -101,10 +99,7 @@ __global__ void op_cuda_{{lh.name}}(
     const int *__restrict map{{map.id}},
     {% endfor %}
     {% for arg in lh.args|gbl %}
-    {{"const " if arg.access_type == OP.AccessType.Read}}{{arg.typ}} *gbl{{arg.id}},
-    {% endfor %}
-    {% for arg in lh.args|info %}
-    {{arg.typ.c()}} *__restrict info{{arg.id}},
+    {{arg.typ}} *gbl{{arg.id}},
     {% endfor %}
     {%- if lh is indirect %}
     {{"int *col_reord," if config.color2}}
@@ -130,9 +125,6 @@ __global__ void op_cuda_{{lh.name}}(
         {% if lh.args|idx|direct|length > 0 %}
         int idx = n;
         {% endif %}
-        {% for arg in lh.args|info %}
-        {{arg.typ}} dummy_info_{{arg.id}} = 0; // Remove once op_arg_info functionality is fixed
-        {% endfor %}
         op2_k{{kernel_idx}}::{{lh.kernel}}(
             {% for arg in lh.args %}
             {%+ call opt_cuda_tern(arg) %}{{arg_to_pointer_cuda(arg)}}{% endcall %}{{-"," if not loop.last}}
@@ -319,9 +311,6 @@ op_cuda_{{lh.name}}<<<num_blocks, block_size
     arg{{map.arg_id}}.map_data_d,
     {% endfor %}
     {% for arg in lh.args|gbl %}
-    ({{arg.typ}} *)arg{{arg.id}}.data_d,
-    {% endfor %}
-    {% for arg in lh.args|info %}
     ({{arg.typ}} *)arg{{arg.id}}.data_d,
     {% endfor %}
     {% for extra_arg in varargs %}

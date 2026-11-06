@@ -3,20 +3,47 @@ module reduc_kernels
     private
 
     public :: indirect_dat1_inc, indirect_dat3_inc, direct_dat1_inc, direct_dat4_inc
+    public :: indirect_inc_reduce, indirect_rw_sum
 
 contains
   subroutine indirect_dat1_inc(n0i, n1i, er)
-    real(4), intent(inout) :: n0i
-    real(4), intent(inout) :: n1i
+    ! target: n0i and n1i are one node where m_e2n repeats an entry.
+    real(4), intent(inout), target :: n0i
+    real(4), intent(inout), target :: n1i
     real(4), intent(in)    :: er
 
     n0i = n0i + er
     n1i = n1i + er
   end subroutine indirect_dat1_inc
 
+  ! Indirect increment combined with a global reduction.  The reduction is
+  ! what makes the atomics schedule split owned work out from the exec halo,
+  ! so this is the loop that exercises all three execution sections.
+  subroutine indirect_inc_reduce(n0i, n1i, er, total)
+    ! target: n0i and n1i are one node where m_e2n repeats an entry.
+    real(4), intent(inout), target :: n0i
+    real(4), intent(inout), target :: n1i
+    real(4), intent(in)    :: er
+    real(8), intent(inout) :: total
+
+    n0i = n0i + er
+    n1i = n1i + er
+    total = total + 2.0_8 * dble(er)
+  end subroutine indirect_inc_reduce
+
+  ! An RW global in an indirect loop: it starts from its value at the call.
+  subroutine indirect_rw_sum(n0r, er, total)
+    real(4), intent(in)    :: n0r
+    real(4), intent(in)    :: er
+    real(8), intent(inout) :: total
+
+    total = total + dble(n0r) + dble(er)
+  end subroutine indirect_rw_sum
+
   subroutine indirect_dat3_inc(n0i, n1i, er)
-    real(4), dimension(3), intent(inout) :: n0i
-    real(4), dimension(3), intent(inout) :: n1i
+    ! target: n0i and n1i are one node where m_e2n repeats an entry.
+    real(4), dimension(3), intent(inout), target :: n0i
+    real(4), dimension(3), intent(inout), target :: n1i
     real(4), dimension(4), intent(in)    :: er
     integer :: d
 

@@ -182,8 +182,9 @@ Set it at configure time:
 4. Test
 ^^^^^^^
 
-With ``-DOP2_ENABLE_TESTS=ON``, the functional tests under ``tests/functional``
-are registered with CTest, one test per built variant:
+With ``-DOP2_ENABLE_TESTS=ON``, CTest runs the functional tests under
+``tests/functional``: each directory's program built for every variant of the
+families it asks for (serial, MPI, and SoA on the GPU variants):
 
 .. code-block:: shell
 
@@ -193,8 +194,8 @@ are registered with CTest, one test per built variant:
    ctest --test-dir build -R idx           # one directory
    ctest --test-dir build -N               # list without running
 
-Each test carries labels for its language, its category, and whether it is
-``serial`` or ``mpi``, and the MPI ones declare their rank count via the
+Each functional test carries labels for its language, its category, and whether
+it is ``serial`` or ``mpi``, and the MPI ones declare their rank count via the
 ``PROCESSORS`` property so ``ctest -j`` schedules them without oversubscribing.
 
 5. Install
@@ -406,7 +407,7 @@ works" without any explicit ``-D`` on the command line.
 Translator dependency hints
 ---------------------------
 
-The translator needs Python 3.8+ with ``jinja2``, ``fparser``, ``pcpp``,
+The translator needs Python 3.9+ with ``jinja2``, ``fparser``, ``pcpp``,
 and ``libclang`` (importable as ``clang.cindex``) available at
 import time. Python is treated like any other OP2 dependency (MPI, HDF5, ...):
 CMake finds it, it doesn't provision it. There's no venv, no pip install, and
@@ -548,8 +549,7 @@ For each variant, the call:
    whichever of ``CUDA``, ``HIP`` or ``Fortran`` the variant needs;
 3. links the matching OP2 library - ``op2::op2_seq`` for ``seq``,
    ``op2::op2_openmp`` for ``openmp``, ``op2::op2_mpi_cuda`` for ``mpi_cuda``,
-   and so on - along with MPI, OpenMP or the CUDA runtime as required;
-4. defines ``USE_MPI`` on every ``mpi_*`` variant.
+   and so on - along with MPI, OpenMP or the CUDA runtime as required.
 
 The translation is a normal build step with a depfile, so editing a kernel
 header retranslates and rebuilds only what depends on it. You do not run the
@@ -583,9 +583,10 @@ repository keep two programs and make two calls, one per family:
        VARIANTS mpi_*)                  # my_app_par_mpi_seq, ...
 
 Each call owns a distinct ``NAME``, so the two sets of executables do not
-collide. If your program handles both cases from one source - guarded by
-``#ifdef USE_MPI``, which every ``mpi_*`` variant defines for you - then one
-call covering every variant is enough.
+collide. A program that handles both cases from one source, guarded by
+``#ifdef USE_MPI``, still takes two calls, with ``COMPILE_DEFINITIONS USE_MPI``
+on the ``mpi_*`` one: a call translates its sources once for all its
+variants, so nothing defines ``USE_MPI`` per variant.
 
 Two keywords are easy to miss. Compile definitions and include directories
 must be passed **to the call**, not applied to the resulting targets with
@@ -624,7 +625,10 @@ A Fortran application is the same call with ``LANGUAGE fortran``, plus
            --consts-module "${CMAKE_CURRENT_SOURCE_DIR}/my_consts.F90")
 
 ``TRANSLATOR_ONLY_ARGS`` reaches the translator without affecting compilation,
-which is what you want for flags like that one and ``--force_soa``.
+which is what you want for flags like that one and ``--force_soa``. The
+translator knows literal kinds and the standard named ones (``real64``,
+``c_int``, ...); name each kind your application defines with
+``--kind NAME=VALUE``, such as ``--kind rk=8``.
 
 Building and running is then ordinary CMake:
 

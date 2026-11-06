@@ -1,11 +1,61 @@
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import copy
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
+import op as OP
 from store import Function
 from util import find, safeFind
+
+
+# The kind names the translator knows, by lower-case name, each its kind
+# number: the standard ones here, an application's own (--kind) added at
+# startup.  Fortran names are case-insensitive, so every lookup lowers them.
+kinds: Dict[str, int] = {
+    "int8": 1,
+    "int16": 2,
+    "int32": 4,
+    "int64": 8,
+    "real32": 4,
+    "real64": 8,
+    "c_bool": 1,
+    "c_int": 4,
+    "c_int32_t": 4,
+    "c_int64_t": 8,
+    "c_long": 8,
+    "c_long_long": 8,
+    "c_float": 4,
+    "c_double": 8,
+}
+
+
+# The intrinsic types the translator supports, by lower-case type name and
+# kind number.
+intrinsic_types: Dict[Tuple[str, int], OP.Type] = {
+    ("integer", 4): OP.Int(True, 32),
+    ("integer", 8): OP.Int(True, 64),
+    ("real", 4): OP.Float(32),
+    ("real", 8): OP.Float(64),
+    ("logical", 1): OP.Bool(),
+    ("logical", 2): OP.Bool(),
+    ("logical", 4): OP.Bool(),
+}
+
+
+# A kind's number, from a literal or a known name, as text or a parse node: 4,
+# the default, for no kind and None for an unknown name.
+def kindValue(kind: Any) -> Optional[int]:
+    if kind is None:
+        return 4
+
+    text = str(kind).strip().lower()
+    return int(text) if text.isdigit() else kinds.get(text)
+
+
+# An intrinsic type by name and kind (as kindValue takes it); None if unsupported.
+def intrinsicType(name: str, kind: Any) -> Optional[OP.Type]:
+    return intrinsic_types.get((name.lower(), kindValue(kind)))
 
 
 def isRef(node: Any, name: str) -> bool:
@@ -26,15 +76,6 @@ def walkOut(node: f2003.Base, node_type) -> f2003.Base:
     parent = node
 
     while not isinstance(parent, node_type) and getattr(parent, "parent", None) is not None:
-        parent = parent.parent
-
-    return parent
-
-
-def walkOutUntil(node: f2003.Base, node_type) -> f2003.Base:
-    parent = node
-
-    while getattr(parent, "parent", None) is not None and not isinstance(parent.parent, node_type):
         parent = parent.parent
 
     return parent
@@ -145,106 +186,91 @@ def parseExplicitShapeSpec(spec: f2003.Explicit_Shape_Spec) -> Tuple[str, str]:
     return (str(spec.children[0]), str(spec.children[1]))
 
 
-def parseDimensions(func: Function, param: str) -> Optional[List[Tuple[str, str]]]:
+# The declaration of param in func with an explicit shape, its own, x(4), or its
+# statement's, dimension(4) :: x: (type_decl, entity_decl, shape_spec), or None.
+def findDimensions(
+    func: Function, param: str
+) -> Optional[Tuple[f2003.Type_Declaration_Stmt, f2003.Entity_Decl, f2003.Explicit_Shape_Spec_List]]:
     spec = fpu.get_child(func.ast, f2003.Specification_Part)
 
     for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
-        check_for_dimension_spec = False
-
         for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
-            name = fpu.get_child(entity_decl, f2003.Name).string
-
-            if name != param:
+            if fpu.get_child(entity_decl, f2003.Name).string.lower() != param:
                 continue
 
             shape_spec = fpu.get_child(entity_decl, f2003.Explicit_Shape_Spec_List)
+            if shape_spec is None:
+                dimension_spec = fpu.walk(type_decl, f2003.Dimension_Attr_Spec)
+                if len(dimension_spec) > 0:
+                    shape_spec = fpu.get_child(dimension_spec[0], f2003.Explicit_Shape_Spec_List)
 
             if shape_spec is None:
-                check_for_dimension_spec = True
-                break
+                return None
 
-            return [parseExplicitShapeSpec(spec) for spec in shape_spec.children]
-
-        if not check_for_dimension_spec:
-            continue
-
-        dimension_spec = fpu.walk(type_decl, f2003.Dimension_Attr_Spec)
-        if len(dimension_spec) == 0:
-            return None
-
-        shape_spec = fpu.get_child(dimension_spec[0], f2003.Explicit_Shape_Spec_List)
-
-        if shape_spec is None:
-            return None
-
-        return [parseExplicitShapeSpec(spec) for spec in shape_spec.children]
+            return type_decl, entity_decl, shape_spec
 
     return None
 
 
-def eraseDimensions(func: Function, param: str) -> None:
+def parseDimensions(func: Function, param: str) -> Optional[List[Tuple[str, str]]]:
+    dimensions = findDimensions(func, param)
+    if dimensions is None:
+        return None
+
+    return [parseExplicitShapeSpec(spec) for spec in dimensions[2].children]
+
+
+def hasTarget(func: Function, param: str) -> bool:
     spec = fpu.get_child(func.ast, f2003.Specification_Part)
+    param = param.lower()
 
     for type_decl in fpu.walk(spec, f2003.Type_Declaration_Stmt):
-        check_for_dimension_spec = False
+        names = [fpu.get_child(e, f2003.Name).string.lower() for e in fpu.walk(type_decl, f2003.Entity_Decl)]
+        attrs = [str(a).upper() for a in fpu.walk(type_decl, f2003.Attr_Spec)]
 
-        for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
-            name = fpu.get_child(entity_decl, f2003.Name).string
+        if param in names and "TARGET" in attrs:
+            return True
 
-            if name != param:
-                continue
+    for target_stmt in fpu.walk(spec, f2003.Target_Stmt):
+        if param in [n.string.lower() for n in fpu.walk(target_stmt, f2003.Name)]:
+            return True
 
-            shape_spec = fpu.get_child(entity_decl, f2003.Explicit_Shape_Spec_List)
+    return False
 
-            if shape_spec is None:
-                check_for_dimension_spec = True
-                break
 
-            items = list(entity_decl.items)
+def eraseDimensions(func: Function, param: str) -> None:
+    type_decl, entity_decl, shape_spec = findDimensions(func, param)
 
-            items[1] = f2003.Array_Spec("*")
-            items[1].parent = entity_decl
+    # x(...) - erase the entity's own dimension
+    if entity_decl.items[1] is shape_spec:
+        items = list(entity_decl.items)
 
-            entity_decl.items = tuple(items)
+        items[1] = f2003.Array_Spec("*")
+        items[1].parent = entity_decl
 
-        if not check_for_dimension_spec:
-            continue
+        entity_decl.items = tuple(items)
+        return
 
-        dimension_spec = fpu.walk(type_decl, f2003.Dimension_Attr_Spec)
-        shape_spec = fpu.get_child(dimension_spec[0], f2003.Explicit_Shape_Spec_List)
+    # dimension(...) :: x - just erase the dimension
+    entity_decl_list = fpu.get_child(type_decl, f2003.Entity_Decl_List)
+    if len(entity_decl_list.items) == 1:
+        shape_spec.items = (f2003.Array_Spec("*"),)
+        shape_spec.items[0].parent = shape_spec
+        return
 
-        # dimension(...) :: x - just erase the dimension
-        if len(fpu.get_child(type_decl, f2003.Entity_Decl_List).items) == 1:
-            shape_spec.items = (f2003.Array_Spec("*"),)
-            shape_spec.items[0].parent = shape_spec
-            continue
+    # dimension(...) :: x, y, ... - split out a new type decl and erase the dimension there
+    idx = [id(item) for item in entity_decl_list.items].index(id(entity_decl))
 
-        # dimension(...) :: x, y, ... - split out a new type decl and erase the dimension there
-        new_type_decl = copy.deepcopy(type_decl)
-        new_dimension_spec = fpu.walk(new_type_decl, f2003.Dimension_Attr_Spec)
-        new_shape_spec = fpu.get_child(new_dimension_spec[0], f2003.Explicit_Shape_Spec_List)
+    new_type_decl = copy.deepcopy(type_decl)
+    new_dimension_spec = fpu.walk(new_type_decl, f2003.Dimension_Attr_Spec)
+    new_shape_spec = fpu.get_child(new_dimension_spec[0], f2003.Explicit_Shape_Spec_List)
 
-        new_shape_spec.items = (f2003.Array_Spec("*"),)
-        new_shape_spec.items[0].parent = shape_spec
+    new_shape_spec.items = (f2003.Array_Spec("*"),)
+    new_shape_spec.items[0].parent = new_shape_spec
 
-        for entity_decl in fpu.walk(new_type_decl, f2003.Entity_Decl):
-            name = fpu.get_child(entity_decl, f2003.Name).string
+    new_entity_decl_list = fpu.get_child(new_type_decl, f2003.Entity_Decl_List)
+    new_entity_decl_list.items = (new_entity_decl_list.items[idx],)
 
-            if name != param:
-                continue
+    fpu.get_child(func.ast, f2003.Specification_Part).content.append(new_type_decl)
 
-            fpu.get_child(new_type_decl, f2003.Entity_Decl_List).items = (entity_decl,)
-            break
-
-        spec.content.append(new_type_decl)
-
-        entity_decls = []
-        for entity_decl in fpu.walk(type_decl, f2003.Entity_Decl):
-            name = fpu.get_child(entity_decl, f2003.Name).string
-
-            if name == param:
-                continue
-
-            entity_decls.append(entity_decl)
-
-        fpu.get_child(type_decl, f2003.Entity_Decl_List).items = tuple(entity_decls)
+    entity_decl_list.items = entity_decl_list.items[:idx] + entity_decl_list.items[idx + 1 :]
