@@ -4,6 +4,10 @@ if(OP2_HAS_TRANSLATOR)
     add_subdirectory(translator)
 endif()
 
+if(CMAKE_CUDA_COMPILER)
+    add_subdirectory(cuda)
+endif()
+
 if(OP2_ENABLE_APP_TESTS)
     if(NOT OP2_ENABLE_APPS)
         message(FATAL_ERROR "OP2_ENABLE_APP_TESTS needs OP2_ENABLE_APPS")
