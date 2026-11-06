@@ -17,7 +17,7 @@ Documentation is available on [Read the Docs](https://op2-dsl.readthedocs.io/en/
 ## Quick-start
 Firstly, OP2 has a varienty of toolchain dependencies that you will likely be able to obtain from your package manager or programming environment:
  * GNU Make > 4.2
- * A C/C++17 compatible compiler: Currently supported compilers are GCC, Clang, Cray, Intel, IBM XL and NVHPC.
+ * A C/C++20 compatible compiler: Currently supported compilers are GCC, Clang, Cray, Intel, IBM XL and NVHPC.
  * (Optional) A Fortran compiler: Currently supported compilers are GFortran, Cray, Intel, IBM XL and NVHPC.
  * (Optional) An MPI implementation: Any implementation with the `mpicc`, `mpicxx`, and `mpif90` wrappers is supported.
  * (Optional) NVIDIA CUDA > 11.8
