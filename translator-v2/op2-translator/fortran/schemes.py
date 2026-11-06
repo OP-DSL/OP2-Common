@@ -1,17 +1,17 @@
 import copy
-import traceback
-import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import fortran.translator.kernels as ftk
 import fortran.translator.kernels_c as ftk_c
+import fortran.validator as fv
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, ParseError, Program
+from diagnostics import ParseError
+from store import Application, Program
+from strategy import indirectRW
 from target import Target
-from util import find
 
 
 class FortranSeq(Scheme):
@@ -34,7 +34,7 @@ class FortranSeq(Scheme):
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel function: {loop.kernel}")
+            raise ParseError(f"unable to find kernel function: {loop.kernel}", loop.loc)
 
         dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
@@ -56,9 +56,20 @@ class FortranOpenMP(Scheme):
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
+        return fv.stridesInsertable(loop, program, app)
+
     consts_template = Path("fortran/openmp/consts.F90.jinja")
     loop_host_templates = [Path("fortran/openmp/loop_host.inc.jinja")]
     master_kernel_templates = [Path("fortran/openmp/master_kernel.F90.jinja")]
+
+    # SIMD lanes sharing a read-write target would lose updates, and an inactive
+    # optional argument has no data to copy.
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        if indirectRW(loop) or any(getattr(arg, "opt", False) for arg in loop.args):
+            config["vectorise"] = config["vectorise"] | {"enable": False}
+        return config
 
     def translateKernel(
         self,
@@ -70,7 +81,7 @@ class FortranOpenMP(Scheme):
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel function: {loop.kernel}")
+            raise ParseError(f"unable to find kernel function: {loop.kernel}", loop.loc)
 
         dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])  # TODO: Loop scope
 
@@ -79,7 +90,8 @@ class FortranOpenMP(Scheme):
 
         ftk.renameConsts(self.lang, kernel_entities + dependencies, app, lambda const: f"op2_const_{const}")
 
-        if not config["vectorise"]:
+        vectorise = config["vectorise"]
+        if not vectorise["enable"] or loop.kernel in vectorise["blacklist"]:
             return ftk.writeSource(kernel_entities + dependencies)
 
         simd_kernel_entities = copy.deepcopy(kernel_entities)
@@ -121,12 +133,12 @@ class FortranCuda(Scheme):
     loop_host_templates = [Path("fortran/cuda/loop_host.CUF.jinja")]
     master_kernel_templates = [Path("fortran/cuda/master_kernel.F90.jinja")]
 
-    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         for arg in loop.args:
             if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
                 return False
 
-        return True
+        return fv.stridesInsertable(loop, program, app)
 
     def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
         config = self.target.defaultConfig()
@@ -154,7 +166,7 @@ class FortranCuda(Scheme):
     ) -> str:
         kernel_entities = app.findEntities(loop.kernel, program, [])  # TODO: Loop scope
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel function: {loop.kernel}")
+            raise ParseError(f"unable to find kernel function: {loop.kernel}", loop.loc)
 
         if len(kernel_entities) > 1:
             raise ParseError(f"ambiguous kernel function: {loop.kernel}")
@@ -301,7 +313,7 @@ class FortranCCuda(Scheme):
     loop_host_templates = [Path("fortran/c_cuda/loop_host.F90.jinja"), Path("fortran/c_cuda/loop_host.cuh.jinja")]
     master_kernel_templates = [Path("fortran/c_cuda/master_kernel.F90.jinja"), Path("fortran/c_cuda/master_kernel.cu.jinja")]
 
-    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         for arg in loop.args:
             if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
                 return False

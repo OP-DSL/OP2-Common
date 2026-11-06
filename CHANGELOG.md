@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- The translator reports a mistake in the application's sources as `file:line:col: error: ...` at the statement, with its `op_par_loop` as a note, and rejects more: an `OP_READ` argument that reaches a kernel parameter that is not a pointer to const, one dat passed with two types or dims, a kernel that calls a function template or a helper in a named namespace. It needs Python 3.9.
 - Testing runs through CTest alone. With `-DOP2_ENABLE_APP_TESTS=ON` the example apps (airfoil, aero, and MG-CFD from a checkout named by `OP2_TEST_MGCFD_DIR`) run every variant to their own validation against downloaded meshes, label `apps`. The GitHub workflows and the Jenkins pipelines configure with CMake and run `ctest`; the bash harness under `tests/bash` and the functional tests' Makefiles are gone. The functional tests build only the families that test something (SoA on the GPU variants only).
 
 ---

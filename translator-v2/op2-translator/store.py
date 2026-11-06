@@ -2,39 +2,16 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from os.path import basename
 from pathlib import Path
 from textwrap import indent
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple
 
 import op as OP
-from op import OpError
+from diagnostics import LineMap, Location, OpError
 from util import flatten, uniqueBy
 
 if TYPE_CHECKING:
     from language import Lang
-
-
-@dataclass(frozen=True)
-class Location:
-    file: str
-    line: int
-    column: int
-
-    def __str__(self) -> str:
-        return f"{basename(self.file)}/{self.line}:{self.column}"
-
-
-@dataclass
-class ParseError(Exception):
-    message: str
-    loc: Optional[Location] = None
-
-    def __str__(self) -> str:
-        if self.loc:
-            return f"Parse error at {self.loc}: {self.message}"
-        else:
-            return f"Parse error: {self.message}"
 
 
 @dataclass
@@ -44,7 +21,15 @@ class Entity:
 
     program: Program
     scope: List[str] = field(default_factory=list)
+    # The keys of the entities it uses.
     depends: Set[str] = field(default_factory=set)
+    # What tells it from the other entities of its name: clang's USR in C++,
+    # so overloads are apart, its name in Fortran.
+    key: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.key:
+            self.key = self.name
 
     # Deep-copy everything but the program reference
     def __deepcopy__(self, memo):
@@ -72,7 +57,8 @@ class Type(Entity):
 @dataclass
 class Function(Entity):
     parameters: List[str] = field(default_factory=list)
-    returns: Optional[OP.Type] = None
+    # Calls of the program's own function templates, which kernels cannot use.
+    template_calls: List[Any] = field(default_factory=list)
 
     def __str__(self):
         return f"Function(name='{self.name}', scope={self.scope}, depends={self.depends})"
@@ -95,6 +81,15 @@ class Program:
     # that cannot report them.
     includes: Set[Path] = field(default_factory=set)
 
+    # Where each line of the preprocessed source came from.
+    line_map: Optional[LineMap] = None
+
+    # A place in the preprocessed source as a place in the user's sources.
+    def locate(self, line: int, column: int = 0) -> Location:
+        if self.line_map is None:
+            return Location(str(self.path), line, column)
+        return self.line_map.locate(line, column)
+
     def findEntities(self, name: str, scope: List[str] = []) -> List[Entity]:
         def in_scope(e):
             return len(e.scope) <= len(scope) and all(map(lambda s: s[0] == s[1], zip(e.scope, scope)))
@@ -111,7 +106,6 @@ class Program:
     def __str__(self) -> str:
         consts_str = "\n    ".join([str(const) for const in self.consts])
         loops_str = "\n".join([str(loop) for loop in self.loops])
-        entities_str = "\n".join([str(entity) for entity in self.entities])
 
         if len(self.consts) > 0:
             consts_str = f"    {consts_str}\n"
@@ -119,10 +113,7 @@ class Program:
         if len(self.loops) > 0:
             loops_str = indent(f"\n{loops_str}", "    ")
 
-        # if len(self.entities) > 0:
-        #     entities_str = indent(f"\n{entities_str}\n", "    ")
-
-        return f"Program in '{self.path}':\n" + consts_str + loops_str  # + entities_str
+        return f"Program in '{self.path}':\n" + consts_str + loops_str
 
 
 @dataclass
@@ -157,6 +148,16 @@ class Application:
                 break
 
         return candidates
+
+    # The entities of key, as findEntities finds those of a name.
+    def findByKey(self, key: str, program: Optional[Program] = None) -> List[Entity]:
+        programs = ([program] if program is not None else []) + [p for p in self.programs if p != program]
+        for candidate in programs:
+            found = [e for e in candidate.entities if e.key == key]
+            if found:
+                return found
+
+        return []
 
     # All const ptrs including external_consts
     def constPtrs(self) -> Set[str]:
@@ -208,6 +209,9 @@ class Application:
                 if isinstance(arg, OP.ArgGbl):
                     self.validateArgGbl(arg, loop, lang)
 
+                if isinstance(arg, OP.ArgInfo):
+                    self.validateArgInfo(arg, loop, lang)
+
             # self.validateKernel(loop, program, lang) TODO
 
     def validateArgDat(self, arg: OP.ArgDat, loop: OP.Loop, lang: Lang) -> None:
@@ -237,3 +241,14 @@ class Application:
 
         if arg.dim is not None and arg.dim < 1:
             raise OpError(f"invalid gbl argument dimension: {arg.dim}", arg.loc)
+
+    def validateArgInfo(self, arg: OP.ArgInfo, loop: OP.Loop, lang: Lang) -> None:
+        reduction = loop.args[arg.ref] if 0 <= arg.ref < len(loop.args) else None
+        if not isinstance(reduction, OP.ArgGbl) or reduction.access_type not in [OP.AccessType.MIN, OP.AccessType.MAX]:
+            raise OpError("info argument must refer to a gbl min or max argument", arg.loc)
+
+        # Only literal dims are known here: a runtime one parses as None.
+        if arg.dim and reduction.dim and arg.dim != reduction.dim:
+            raise OpError(
+                f"info argument has dimension {arg.dim}, but the reduction it refers to has {reduction.dim}", arg.loc
+            )

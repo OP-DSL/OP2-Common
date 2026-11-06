@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import logging
 import sys
-import traceback
 import re
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Environment
 
 import op as OP
+from diagnostics import TranslatorError
 from language import Lang
 from store import Application, Program
 from target import Target
@@ -32,7 +32,8 @@ class Scheme(Findable["Scheme"]):
     def __str__(self) -> str:
         return f"{self.lang.name}/{self.target.name}"
 
-    def canGenLoopHost(self, loop: OP.Loop) -> bool:
+    # Whether the target handles the loop, or leaves it to its fallback.
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         return True
 
     def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
@@ -67,6 +68,7 @@ class Scheme(Findable["Scheme"]):
             "lh": loop,
             "kernel_idx": kernel_idx,
             "lang": self.lang,
+            "target": self.target,
             "config": self.getConfig(loop, config_overrides),
             "kernel_func": None,
         }
@@ -74,18 +76,20 @@ class Scheme(Findable["Scheme"]):
         if main_args["config"].get("force_fallback"):
             loop.fallback = True
 
+        can_generate = not loop.fallback and self.canGenLoopHost(loop, program, app)
         try:
-            if (not loop.fallback and self.canGenLoopHost(loop)) or force_generate:
+            if can_generate or force_generate:
                 main_args["kernel_func"] = self.translateKernel(loop, program, app, main_args["config"], kernel_idx)
-        except Exception as e:
+        except TranslatorError as e:
+            # Without a fallback, a loop that does not translate is an error.
+            if self.fallback is None:
+                raise
+
             logger.warning(
                 f"kernel translation for kernel {kernel_idx} ({loop.name}) failed ({self}):\n"
-                f"  fallback: {loop.fallback}, can generate: {self.canGenLoopHost(loop)}, force_generate: {force_generate}\n"
+                f"  fallback: {loop.fallback}, can generate: {can_generate}, force_generate: {force_generate}\n"
                 f"  {e}"
             )
-
-            if not isinstance(e, OP.OpError):
-                logger.debug("Traceback:\n%s", traceback.format_exc())
 
         if main_args["kernel_func"] is None and self.fallback is None:
             return None
