@@ -104,7 +104,7 @@ If you are using CUDA or HIP, you may also specify a comma separated list of tar
 Application Build Variants
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When building an application, each parallelisation variant is a Make target ``<app>_<variant>`` (``<app>_mpi_<variant>`` with MPI), for example ``airfoil_c_cuda``:
+When building an application, each parallelisation variant is a Make target ``<app>_<variant>`` (``<app>_mpi_<variant>`` with MPI), for example ``airfoil_cuda``:
 
 .. list-table::
    :header-rows: 1
@@ -121,21 +121,21 @@ When building an application, each parallelisation variant is a Make target ``<a
    * - ``openmp_legacy``
      - Multi-threaded CPU build from the legacy templates (translator-v2 ``openmp_legacy`` target).
    * - ``cuda``
-     - NVIDIA GPU build using CUDA (translator-v2 ``cuda`` target, ahead-of-time compiled).
+     - NVIDIA GPU build using CUDA with JIT compilation (translator-v2 ``cuda`` target). Device kernels are compiled at application start-up using NVRTC, enabling runtime specialisation.
    * - ``hip``
-     - AMD GPU build using HIP (translator-v2 ``hip`` target, ahead-of-time compiled).
-   * - ``c_cuda``
-     - NVIDIA GPU build using CUDA with JIT compilation (translator-v2 ``c_cuda`` target). Device kernels are compiled at application start-up using NVRTC, enabling runtime specialisation.
-   * - ``c_hip``
-     - AMD GPU build using HIP with JIT compilation (translator-v2 ``c_hip`` target). Device kernels are compiled at application start-up using the HIP RTC library.
+     - AMD GPU build using HIP with JIT compilation (translator-v2 ``hip`` target). Device kernels are compiled at application start-up using the HIP RTC library.
+   * - ``cuda_legacy``
+     - NVIDIA GPU build from the legacy templates (translator-v2 ``cuda_legacy`` target, ahead-of-time compiled).
+   * - ``hip_legacy``
+     - AMD GPU build from the legacy templates (translator-v2 ``hip_legacy`` target, ahead-of-time compiled).
    * - ``mpi_<variant>``
-     - Distributed-memory MPI variant of any of the above (e.g. ``airfoil_mpi_c_cuda``). Requires an MPI-enabled OP2 library build.
+     - Distributed-memory MPI variant of any of the above (e.g. ``airfoil_mpi_cuda``). Requires an MPI-enabled OP2 library build.
 
 For example, to build the JIT CUDA variant of the Airfoil benchmark:
 
 .. code-block:: shell
 
-   make -C apps/c/airfoil/airfoil_plain/dp airfoil_c_cuda
+   make -C apps/c/airfoil/airfoil_plain/dp airfoil_cuda
 
 See :doc:`translator` for details on how to generate the required source files for each variant.
 
@@ -156,13 +156,15 @@ Fortran application variants are Make targets ``<app>_<variant>`` too:
      - Code-generated sequential Fortran build.
    * - ``openmp_legacy``
      - OpenMP multi-threaded Fortran build from the legacy templates.
-   * - ``cuda``
-     - Native CUDA Fortran build. Requires a CUDA Fortran-capable compiler (NVHPC).
-   * - ``c_seq``
+   * - ``cuda_legacy``
+     - Native CUDA Fortran build from the legacy templates. Requires a CUDA Fortran-capable compiler (NVHPC).
+   * - ``seq_f2c``
      - Fortran interop with sequential C++ kernels.
-   * - ``c_cuda``
+   * - ``openmp_f2c``
+     - Fortran interop with C++ kernels over OpenMP threads, choosing each loop's execution strategy at run time.
+   * - ``cuda_f2c``
      - Fortran interop with JIT CUDA kernels (recommended GPU target for Fortran).
-   * - ``c_hip``
+   * - ``hip_f2c``
      - Fortran interop with JIT HIP kernels.
    * - ``mpi_<variant>``
      - Distributed-memory MPI variant of any of the above.
@@ -171,7 +173,7 @@ For example, to build the Fortran Airfoil benchmark with JIT CUDA:
 
 .. code-block:: shell
 
-   make -C apps/fortran/airfoil airfoil_plain_c_cuda
+   make -C apps/fortran/airfoil airfoil_plain_cuda_f2c
 
 See :ref:`op2-fortran-api` for the Fortran API reference and :doc:`translator` for Fortran code generation targets.
    

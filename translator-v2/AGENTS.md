@@ -15,7 +15,7 @@ and renders the loop hosts and master files from `resources/templates`.
   fallback on a `TranslatorError` only.
 - One user kernel, and one JIT string of it, per loop host file: a kernel
   that takes an indirect `OP_INC` argument is a template over its increment
-  hook (`OP.Loop.incHook`).
+  hook (`OP.Loop.incHook`), in both languages.
 - C++ kernel functions and types are known by their USR (`Entity.key`),
   never by their spelling.
 - Kernel text is compiled by the host compiler, nvcc, NVRTC, hipcc and

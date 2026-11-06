@@ -63,7 +63,8 @@ These are generic makefiles that define a complete set of build rules for the co
  * `genseq`: Translated sequential variant.
  * `openmp` (C++): A multi-threaded variant over OpenMP threads, choosing each loop's execution strategy at run time.
  * `openmp_legacy`: A multi-threaded variant from the legacy templates, using OpenMP pragmas.
- * `cuda`: A multi-threaded variant using NVIDIA CUDA.
+ * `cuda`, `hip` (C++): GPU variants with JIT-compiled kernels; `cuda_legacy`, `hip_legacy` from the legacy templates.
+ * `seq_f2c`, `openmp_f2c`, `cuda_f2c`, `hip_f2c` (Fortran): Fortran hosts calling kernels translated to C++, sequential, over OpenMP threads, or on the GPU; `cuda_legacy` in CUDA Fortran.
  * `mpi_<variant>`: Many-core MPI variants of all other variants.
 
 A few input variables must be defined before the inclusion of the makefiles. For the `c_app.mk` makefile these are:
