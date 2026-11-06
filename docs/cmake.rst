@@ -197,6 +197,23 @@ Each test carries labels for its language, its category, and whether it is
 ``serial`` or ``mpi``, and the MPI ones declare their rank count via the
 ``PROCESSORS`` property so ``ctest -j`` schedules them without oversubscribing.
 
+With ``-DOP2_ENABLE_APP_TESTS=ON`` as well (and ``-DOP2_ENABLE_APPS=ON``), every
+variant of airfoil (plain, temporary-dat and HDF5, C++ and Fortran) and aero
+runs to its own validation, label ``apps``.  Each mesh is downloaded once, by
+an ``op2_app_mesh_<file>`` test ahead of the tests that read it, into
+``OP2_TEST_MESH_DIR`` (default ``<build>/test-meshes``), which can point at a
+directory kept between builds.  ``-DOP2_TEST_MGCFD_DIR=<checkout>`` adds
+MG-CFD's C++ app, built from an `MG-CFD-app-OP2
+<https://github.com/warwick-hpsc/MG-CFD-app-OP2>`_ checkout and run on its
+M6 wing and Rotor37 1M meshes:
+
+.. code-block:: shell
+
+   cmake -B build -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON \
+       -DOP2_ENABLE_APP_TESTS=ON -DOP2_TEST_MGCFD_DIR=../MG-CFD-app-OP2
+   cmake --build build -j$(nproc)
+   ctest --test-dir build -L apps -j4
+
 5. Install
 ^^^^^^^^^^
 
@@ -259,8 +276,11 @@ configure to disable.
      - Skip building the example apps under ``apps/``.
    * - ``OP2_ENABLE_TESTS``
      - ``OFF``
-     - Skip the functional tests under ``tests/`` and their ``ctest``
-       registration.
+     - Skip the tests under ``tests/`` and their ``ctest`` registration.
+   * - ``OP2_ENABLE_APP_TESTS``
+     - ``OFF``
+     - Also run the example apps (needs ``OP2_ENABLE_APPS``) to their own
+       validation, label ``apps``; see *Test* above.
    * - ``OP2_ENABLE_TRANSLATOR``
      - ``ON``
      - Skip the Python probe. ``OP2AppSupport.cmake`` becomes unusable (no
