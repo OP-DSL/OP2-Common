@@ -65,6 +65,7 @@ static void init_parts(int argc, char **argv, int diags, MPI_Comm world, MPI_Com
   OP_MPI_WORLD = world;
   OP_MPI_GLOBAL = global;
   op_init_core(argc, argv, diags);
+  op_renumber_init();
   op_mpi_halo_exchanges_init();
   op::env::finish();
 }
