@@ -111,10 +111,14 @@ include directory, so both spellings work in the source tree and installed.
 | `op_openmp_rt_support.h` | OpenMP-specific execution plan functions (`op_plan_get`) |
 | `op_cuda_rt_support.h` | CUDA runtime functions (device init, memory allocation/transfer) |
 | `op_cuda_reduction.h` | GPU reduction templates using shared memory (INC, MAX, MIN, WRITE) |
+| `op_lib_mpi.h` | MPI-only application API (HDF5 declarations); includes `op_mpi_core.h` |
+| `op_mpi_core.h` | MPI library entry points: halo creation, partitioning, `op_mpi_get_data`/`put_data`, timing |
 | `op2/env.h` | `op::env`: the environment variables' parser every layer reads its own through |
 | `op_gpu_shims.h` | Unified GPU shim layer mapping `gpu*` macros to CUDA or HIP |
-| `op_mpi_core.h` | MPI halo data structures: `halo_list`, import/export lists, MPI comms |
-| `op_lib_mpi.h` | MPI runtime state: exec/non-exec halo lists, partition tables |
+| `op2/mpi/halo.h` | Internal to the MPI libraries: halo lists (`op::mpi::HaloList`, `SetHalo`, `MapHalo`), partition tables, `exchange_rows`/`migrate_rows` |
+| `op2/mpi/comm.h` | Internal: the sparse data exchange (`op::mpi::sparse::exchange`, NBX) the MPI layer builds its lists with |
+| `op2/mpi/exchange.h`, `exchange_backend.h` | Internal (`op::mpi`): the halo exchange's gather/scatter specs, shared by the host and device backends |
+| `op2/renumber/` | `op::renumber`: RCM, Sloan and Hilbert-curve orderings for `op_renumber` |
 | `op_hdf5.h` | Parallel HDF5 I/O API |
 | `op_profile.h` | Tree-based timing instrumentation (JSON output, 4 detail levels) |
 | `op_util.h` | Utility functions |
@@ -132,12 +136,14 @@ include directory, so both spellings work in the source tree and installed.
 | `openmp/op_openmp_decl.cpp` | OpenMP multi-threaded backend |
 | `cuda/op_cuda_decl.cpp` | CUDA backend declarations |
 | `cuda/op_cuda_rt_support.cpp` | CUDA runtime support (memory, device initialization) |
-| `mpi/op_mpi_core.cpp` | MPI halo creation and exchange |
+| `mpi/op_mpi_core.cpp` | MPI halo creation, `op_mpi_get_data`/`put_data`, global reductions |
+| `mpi/op_mpi_unified_exchanges.cpp` | The runtime halo exchange (`op_mpi_halo_exchanges`, `op_mpi_wait_all`) |
+| `mpi/op_mpi_unified_host.cpp` | Host gather/scatter for the halo exchange |
 | `mpi/op_mpi_decl.cpp` | MPI backend declarations (wraps sequential backend) |
 | `mpi/op_mpi_hdf5.cpp` | Parallel HDF5 I/O |
 | `mpi/op_mpi_part_core.cpp` | Mesh partitioning (PTScotch, ParMETIS, KaHIP, Inertial) |
 | `mpi/op_mpi_cuda_decl.cpp` | MPI+CUDA combined backend |
-| `mpi/op_mpi_cuda_kernels.cu` | CUDA kernels for GPU-side halo packing/unpacking |
+| `mpi/op_mpi_cuda_unified_kernels.cu` | Device gather/scatter for the halo exchange: one kernel each per exchange |
 | `externlib/` | Bundled external libraries |
 | `fortran/` | Fortran interop wrapper layers |
 
@@ -352,7 +358,7 @@ All backends have an MPI variant (e.g. `mpi_seq`, `mpi_openmp`, `mpi_cuda`).
 **Halo exchange model:**
 - Exec-halo elements (EEH/IEH): mesh elements on the boundary between MPI ranks that are accessed but owned by a remote rank.
 - Non-exec-halo elements (INH/ENH): ghost-cell data required for correctness of indirect accesses.
-- Full exchange implemented in `op2/src/mpi/op_mpi_core.cpp`.
+- Halo lists built in `op2/src/mpi/op_mpi_core.cpp`; the exchange itself is `op2/src/mpi/op_mpi_unified_exchanges.cpp`.
 
 **Mesh partitioning methods:**
 - `PTScotch`: graph-based (K-way) — recommended

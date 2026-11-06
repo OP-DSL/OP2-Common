@@ -194,7 +194,7 @@ module OP2_Fortran_RT_Support
 
     end function
 
-    subroutine op_partition_c (lib_name, lib_routine, prime_set, prime_map, coords) BIND(C,name='op_partition')
+    subroutine op_partition_c (lib_name, lib_routine, prime_set, prime_map, data) BIND(C,name='op_partition')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
@@ -204,7 +204,7 @@ module OP2_Fortran_RT_Support
 
       type(op_set_core) :: prime_set
       type(op_map_core) :: prime_map
-      type(op_dat_core) :: coords
+      type(op_dat_core) :: data
 
     end subroutine
 
@@ -246,18 +246,49 @@ module OP2_Fortran_RT_Support
 
     end subroutine
 
-    integer(kind=c_int) function op_mpi_halo_exchanges (set, argsNumber, args) BIND(C,name='op_mpi_halo_exchanges')
+    subroutine op_set_coords_c (set, coords) BIND(C,name='op_set_coords')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
 
-      type(c_ptr), value ::         set        ! iteration set
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      type(op_arg), dimension(*) :: args       ! array with op_args
+      type(op_set_core) :: set
+      type(op_dat_core) :: coords
 
-    end function op_mpi_halo_exchanges
+    end subroutine
 
-    integer(kind=c_int) function op_mpi_halo_exchanges_grouped (set, argsNumber, args, device) BIND(C,name='op_mpi_halo_exchanges_grouped')
+    subroutine op_set_coords_derived_c (set, to_coords, coords) BIND(C,name='op_set_coords_derived')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_set_core) :: set
+      type(op_map_core) :: to_coords
+      type(op_dat_core) :: coords
+
+    end subroutine
+
+    subroutine op_set_coords_ptr_c (set, coords) BIND(C,name='op_set_coords_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_set_core) :: set
+      type(c_ptr), value, intent(in) :: coords
+
+    end subroutine
+
+    subroutine op_set_coords_derived_ptr_c (set, to_coords, coords) BIND(C,name='op_set_coords_derived_ptr')
+
+      use, intrinsic :: ISO_C_BINDING
+      use OP2_Fortran_Declarations
+
+      type(op_set_core) :: set
+      type(c_ptr), value, intent(in) :: to_coords
+      type(c_ptr), value, intent(in) :: coords
+
+    end subroutine
+
+    integer(kind=c_int) function op_mpi_halo_exchanges (set, argsNumber, args, device) BIND(C,name='op_mpi_halo_exchanges')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
@@ -267,7 +298,7 @@ module OP2_Fortran_RT_Support
       type(op_arg), dimension(*) :: args       ! array with op_args
       integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
 
-    end function op_mpi_halo_exchanges_grouped
+    end function op_mpi_halo_exchanges
 
     subroutine op_mpi_wait_all (argsNumber, args) BIND(C,name='op_mpi_wait_all')
 
@@ -283,28 +314,7 @@ module OP2_Fortran_RT_Support
       use, intrinsic :: ISO_C_BINDING
     end function
 
-    subroutine op_mpi_wait_all_grouped (argsNumber, args, device) BIND(C,name='op_mpi_wait_all_grouped')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      type(op_arg), dimension(*) :: args       ! array with op_args
-      integer(kind=c_int), value :: device     ! 1 for CPU 2 for GPU
-
-    end subroutine
-
     subroutine op_mpi_test_all (argsNumber, args) BIND(C,name='op_mpi_test_all')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      type(op_arg), dimension(*) :: args       ! array with op_args
-
-    end subroutine
-
-    subroutine op_mpi_test_all_grouped (argsNumber, args) BIND(C,name='op_mpi_test_all_grouped')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
@@ -319,27 +329,6 @@ module OP2_Fortran_RT_Support
     end function
 
     subroutine op_mpi_set_dirtybit (argsNumber, args) BIND(C,name='op_mpi_set_dirtybit')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      type(op_arg), dimension(*) :: args       ! array with op_args
-
-    end subroutine
-
-    integer(kind=c_int) function op_mpi_halo_exchanges_cuda (set, argsNumber, args) BIND(C,name='op_mpi_halo_exchanges_cuda')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      type(c_ptr), value ::         set        ! iteration set
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-      type(op_arg), dimension(*) :: args       ! array with op_args
-
-    end function op_mpi_halo_exchanges_cuda
-
-    subroutine op_mpi_wait_all_cuda (argsNumber, args) BIND(C,name='op_mpi_wait_all_cuda')
 
       use, intrinsic :: ISO_C_BINDING
       use OP2_Fortran_Declarations
@@ -378,16 +367,6 @@ module OP2_Fortran_RT_Support
       type(op_arg), dimension(*) :: args       ! array with op_args
 
     end subroutine
-
-    subroutine op_mpi_reduce_combined (args, argsNumber) BIND(C,name='op_mpi_reduce_combined')
-
-      use, intrinsic :: ISO_C_BINDING
-      use OP2_Fortran_Declarations
-
-      type(op_arg), dimension(*) :: args       ! array with op_args
-      integer(kind=c_int), value :: argsNumber ! number of op_dat arguments to op_par_loop
-
-   end subroutine
 
     subroutine op_mpi_reduce_int (arg, data) BIND(C,name='op_mpi_reduce_int')
 
@@ -509,7 +488,7 @@ module OP2_Fortran_RT_Support
 
     end subroutine setKernelTime
 
-    subroutine op_trigger_halo_exchanges_c(device, name, set, nargs, args) BIND(C,name='op_trigger_halo_exchanges_c')
+    subroutine op_trigger_halo_exchanges_c(device, name, set, nargs, args) BIND(C,name='op_trigger_halo_exchanges')
     use, intrinsic :: ISO_C_BINDING
     use OP2_Fortran_Declarations
 
@@ -560,7 +539,7 @@ module OP2_Fortran_RT_Support
 
   end function FortranPlanCaller
 
-  subroutine op_partition (lib_name, lib_routine, prime_set, prime_map, coords)
+  subroutine op_partition (lib_name, lib_routine, prime_set, prime_map, data)
 
     use, intrinsic :: ISO_C_BINDING
     use OP2_Fortran_Declarations
@@ -572,9 +551,9 @@ module OP2_Fortran_RT_Support
 
     type(op_set) :: prime_set
     type(op_map) :: prime_map
-    type(op_dat) :: coords
+    type(op_dat) :: data
 
-    call op_partition_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, prime_map%mapPtr, coords%dataPtr)
+    call op_partition_c (lib_name//C_NULL_CHAR, lib_routine//C_NULL_CHAR, prime_set%setPtr, prime_map%mapPtr, data%dataPtr)
 
   end subroutine
 
@@ -606,6 +585,87 @@ module OP2_Fortran_RT_Support
     type(op_map) :: base_map
 
     call op_renumber_c (base_map%mapPtr)
+
+  end subroutine
+
+  ! A set's geometry, for geometric partitioning and renumbering: coords on the set
+  ! itself, or coords on to_coords' target averaged over to_coords (cell centroids
+  ! from node coordinates, say).
+  subroutine op_set_coords (set, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    type(op_dat) :: coords
+
+    call op_set_coords_c (set%setPtr, coords%dataPtr)
+
+  end subroutine
+
+  subroutine op_set_coords_derived (set, to_coords, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    type(op_map) :: to_coords
+    type(op_dat) :: coords
+
+    call op_set_coords_derived_c (set%setPtr, to_coords%mapPtr, coords%dataPtr)
+
+  end subroutine
+
+  ! The same for the pointer API: the map and the coordinates are the arrays they
+  ! were declared from. The coordinates have 2 or 3 components per element, as
+  ! their op_dat was declared - x(2, n) or x(3, n).
+  subroutine op_set_coords_ptr (set, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    real(8), dimension(*), target :: coords
+
+    call op_set_coords_ptr_c (set%setPtr, c_loc(coords))
+
+  end subroutine
+
+  ! The map is the array op_decl_map declared it from ...
+  subroutine op_set_coords_derived_ptr (set, to_coords, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    integer(4), dimension(*), target :: to_coords
+    real(8), dimension(*), target :: coords
+
+    call op_set_coords_derived_ptr_c (set%setPtr, c_loc(to_coords), c_loc(coords))
+
+  end subroutine
+
+  ! ... or op_decl_map_long, here
+  subroutine op_set_coords_derived_ptr_long (set, to_coords, coords)
+
+    use, intrinsic :: ISO_C_BINDING
+    use OP2_Fortran_Declarations
+
+    implicit none
+
+    type(op_set) :: set
+    integer(c_long_long), dimension(*), target :: to_coords
+    real(8), dimension(*), target :: coords
+
+    call op_set_coords_derived_ptr_c (set%setPtr, c_loc(to_coords), c_loc(coords))
 
   end subroutine
 

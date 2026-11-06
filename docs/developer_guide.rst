@@ -235,8 +235,6 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
      - Disables internal data copy on ``op_decl_dat``/``op_decl_map``; the user's pointer is used directly.
    * - ``OP_TEST_FREQ=<n>``
      - Frequency of ``MPI_Test`` polling during computation-communication overlap.
-   * - ``-gpudirect``
-     - Enable NVIDIA GPUDirect for direct GPU-to-GPU MPI transfers.
    * - ``OP_AUTO_SOA``
      - Store every dataset of dimension above 1 as SoA on the device (also an environment variable).
    * - ``OP_PARTIAL_EXCHANGE``
@@ -268,23 +266,26 @@ After partitioning, OP2 calls ``op_halo_create()`` (defined in ``op2/src/mpi/op_
 ``export non-execute halo (enh)``
     Elements in ``core`` that are referenced by elements on foreign processes must be exported (if not already in ``eeh``).  ``enh`` is a subset of ``core``.
 
-The halo list structure (``halo_list_core``) stores, for each set:
+A halo list (``op::mpi::HaloList``, ``op2/include/op_mpi_halo.h``) holds one contiguous block of ``list`` per neighbouring rank.  That header is internal to the MPI library: ``op_lib_mpi.h``, which applications include, does not include it, so none of the halo types or tables reach application code.
 
-.. code-block:: c
+.. code-block:: c++
 
-   typedef struct {
-       op_set set;      // set to which this list belongs
-       int size;        // number of elements in the list
-       int *ranks;      // MPI ranks to export to / import from
-       int  ranks_size; // number of neighbouring MPI ranks
-       int *disps;      // displacement for each rank's element list
-       int *sizes;      // number of elements per rank
-       int *list;       // the full element list
-   } halo_list_core;
+   struct HaloList {
+       op_set set;                       // set to which this list belongs
+       std::vector<int> ranks;           // MPI ranks to export to / import from, ascending
+       std::vector<idx_l_t> sizes;       // number of elements per rank, each > 0
+       std::vector<idx_l_t> disps;       // prefix sum of sizes: where each rank's block starts
+       std::unique_ptr<idx_l_t[]> list;  // the full element list, null when empty
 
-Four global arrays — ``OP_export_exec_list``, ``OP_import_exec_list``, ``OP_import_nonexec_list``, ``OP_export_nonexec_list`` — are indexed by ``set->index``.
+       int ranks_size() const;           // ranks.size()
+       idx_l_t size() const;             // total entries in list
+   };
 
-Halo creation in ``op_halo_create()`` proceeds in 12 steps:
+It is a value that owns its arrays.  Lists are built with ``HaloList::from_pairs()`` or ``HaloList::from_groups()``, and ``op::mpi::transpose()`` turns an export list into the matching import list or the reverse.  A set's four lists live in ``OP_set_halos[set->index]`` (``op::mpi::SetHalo``: ``export_exec``, ``import_exec``, ``export_nonexec``, ``import_nonexec``), and a map's partial-exchange lists in ``OP_map_halos[map->index]`` (``op::mpi::MapHalo``).
+
+An export list holds local indices of owned elements.  An import list holds, for each halo element, its current local index on its owner; ``op_mpi_probe_halo_index()`` returns that index with the owner's rank.  Halo creation (putting each set's core first) and ``op_renumber()`` both move a rank's owned elements with ``op::mpi::move_owned()`` (``op2/mpi/halo.h``), which takes their dat rows, map rows and map entries, export lists - the partial-exchange ones too - and ``g_index`` with them.  It rewrites only the moving rank's export lists, so the import lists everywhere are then refilled from them with ``op_halo_refresh_imports()``, once every rank has moved what it will.
+
+Halo creation in ``op_halo_create()`` proceeds in 11 steps:
 
 1. Build ``eeh`` export lists (elements whose referenced data spans a partition boundary).
 2. Exchange ``eeh`` lists between neighbours to construct ``ieh`` import lists.
@@ -294,10 +295,9 @@ Halo creation in ``op_halo_create()`` proceeds in 12 steps:
 6. Exchange execute-halo data; append to each ``op_dat->data`` array.
 7. Exchange non-execute halo data; append to each ``op_dat->data`` array.
 8. Renumber all mapping tables to use local indices.
-9. Create MPI send buffers (``op_mpi_buffer`` struct) for each ``op_dat``.
-10. Separate core elements into a contiguous block (index range ``[0, set->core_size)``); elements in ``[set->core_size, set->size)`` are export-execute-halo (``eeh``) elements.  The full iteration range, including imported halo elements, extends to ``set->size + set->exec_size + set->nonexec_size``.  The ``op_set_core`` struct exposes ``core_size``, ``exec_size``, and ``nonexec_size`` for this purpose.
-11. Save the original set-element ordering (stored in the ``part`` struct) for ``op_fetch_data()`` and output routines.
-12. Free temporaries; compute a rough estimate of the average worst-case halo size.
+9. Separate core elements into a contiguous block (index range ``[0, set->core_size)``); elements in ``[set->core_size, set->size)`` are export-execute-halo (``eeh``) elements.  The full iteration range, including imported halo elements, extends to ``set->size + set->exec_size + set->nonexec_size``.  The ``op_set_core`` struct exposes ``core_size``, ``exec_size``, and ``nonexec_size`` for this purpose.  Moving the owned elements changes their indices, so the import lists are then refreshed from the rewritten export lists.
+10. Save the original set-element ordering (stored in the ``part`` struct) for ``op_fetch_data()`` and output routines.
+11. Free temporaries; compute a rough estimate of the average worst-case halo size.
 
 After halo creation, the element ordering within each set is: ``core | eeh | ieh | inh``, with sizes ``set->core_size``, ``set->size - set->core_size``, ``set->exec_size``, ``set->nonexec_size``.
 
@@ -313,19 +313,25 @@ When ``op_par_loop`` executes under MPI:
   2. If all indirect arguments are ``OP_READ``, loop over ``set->size``; otherwise loop over ``set->size + ieh->size``.
   3. After the loop, set the dirty bit for each ``op_arg`` with access ``OP_INC``, ``OP_WRITE``, or ``OP_RW``.
 
-``op_exchange_halo()`` (``op2/src/mpi/op_mpi_rt_support.cpp``) checks the conditions, packs halo data into pre-defined send buffers, issues non-blocking ``MPI_Isend`` / ``MPI_Irecv`` operations, and returns immediately.  The ``op_par_loop`` is structured so that:
+``op_mpi_halo_exchanges(set, nargs, args, device)`` (``op2/src/mpi/op_mpi_unified_exchanges.cpp``) checks the conditions for every argument of the loop at once, gathers all the halo data bound for each neighbour into one buffer (in a single kernel launch on a device), issues one non-blocking ``MPI_Isend`` / ``MPI_Irecv`` per neighbour, and returns immediately.  The ``op_par_loop`` is structured so that:
 
-1. All ``op_exchange_halo()`` calls are issued first.
+1. ``op_mpi_halo_exchanges()`` is called before the loop, with ``device`` 1 for a loop that runs on the host and 2 for one on a device.
 2. Core elements are computed (no halo data required).
-3. ``op_wait_all()`` is called.
+3. ``op_mpi_wait_all()`` completes the communication and scatters the received data into the halo.
 4. The remaining elements (``ieh``) are computed.
+
+Every exchange must be followed by exactly one wait before the next exchange, including one that moves nothing: a direct loop reads no halo and exchanges only to bring its dats to the host or device it runs on, so it waits straight away.  A wait with no exchange outstanding, a second exchange before the first is waited for, or an exchange still outstanding at ``op_exit()`` stops the job with a message (naming the set of the exchange left unwaited, where there is one).  An indirect loop that waits at the first non-core plan colour must also wait after the loop when the plan has none, and the test for that is ``plan->ncolors_core == plan->ncolors``: a set with no non-core elements leaves ``ncolors_core`` at 0, so ``set_size == set->core_size`` would wait twice.
+
+During step 2, ``op_mpi_test_all()`` progresses the outstanding messages without blocking.
+
+These are the only exchange entry points, for translator v1 and v2 alike, and the device is an argument.
 
 This maximises overlap of computation with communication.
 
 Partial Halo Exchange
 ~~~~~~~~~~~~~~~~~~~~~
 
-For loops over a *boundary set* with sparse connectivity to an internal set, exchanging the full internal halo is wasteful.  OP2 implements a partial halo exchange via ``op_halo_permap_create()``: a per-mapping halo is computed and used if the number of mapping table entries crossing partition boundaries (for that map) is less than 30% of the full halo size for the exchanged set.
+For loops over a *boundary set* with sparse connectivity to an internal set, exchanging the full internal halo is wasteful.  OP2 implements a partial halo exchange via ``op_halo_permap_create()``: a per-mapping halo is computed and used if the number of mapping table entries crossing partition boundaries (for that map) is less than 30% of the full halo size for the exchanged set.  Each rank finds the halo elements the map reaches, groups them by owner, and sends each owner their positions in the halo it receives from that owner; the owner translates the positions through its own export lists.
 
 Global Operations
 ~~~~~~~~~~~~~~~~~
@@ -335,7 +341,7 @@ For ``op_arg`` of type ``OP_ARG_GBL`` (global reduction), contributions from the
 Fetching Data
 ~~~~~~~~~~~~~
 
-``op_fetch_data()`` returns the current values of an ``op_dat``'s data array in the original element order that was supplied to OP2 (before repartitioning).  The implementation copies the current data and reorders it using the original global indices saved in step 11 of halo creation.
+``op_fetch_data()`` returns the current values of an ``op_dat``'s data array in the original element order that was supplied to OP2 (before repartitioning).  The implementation copies the current data and reorders it using the original global indices saved in step 10 of halo creation.
 
 Performance Instrumentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -345,21 +351,7 @@ OP2 provides two timer routines:
 - ``op_timers_core()`` (``op2/src/core/op_lib_core.cpp``) — elapsed time on a single MPI process.
 - ``op_timers()`` (``op2/src/mpi/op_mpi_decl.cpp``) — includes an implicit ``MPI_Barrier`` to measure wall time across the whole MPI universe.
 
-Per-loop statistics are accumulated in an ``op_mpi_kernel`` struct:
-
-.. code-block:: c
-
-   typedef struct {
-       UT_hash_handle hh;              // uthash intrusive handle
-       char name[NAMESIZE];            // kernel name
-       double time;                    // total compute + comm-overlap time
-       int count;                      // number of kernel invocations
-       int num_indices;                // number of op_dat communication entries
-       op_dat_mpi_comm_info *comm_info;// per-dat MPI communication info
-       int cap;                        // capacity of comm_info array
-   } op_mpi_kernel;
-
-MPI message monitoring can be enabled at compile time with ``-DCOMM_PERF``.  On ``op_exit()``, all halo lists, MPI send buffers, and performance-measurement tables are freed.
+``op_mpi_perf_time()`` accumulates each loop's call count and time in a table keyed by loop name (``op2/src/mpi/op_mpi_core.cpp``), printed by ``op_timing_output()``.  On ``op_exit()``, all halo lists and performance-measurement tables are freed.
 
 
 HDF5 File I/O
@@ -377,24 +369,26 @@ Distributing an unstructured mesh across the MPI universe requires a mesh partit
 
 Supported partitioners:
 
-- **KaHIP k-way:** ``op_partition("KAHIP", "KWAY", ...)`` — k-way graph partitioning using KaHIP.
-- **ParMetis geometric:** ``op_partition("PARMETIS", "GEOM", ...)`` — uses node coordinates, suitable for geometrically regular meshes.
-- **ParMetis k-way:** ``op_partition("PARMETIS", "KWAY", ...)`` — graph-based k-way partitioning.
-- **ParMetis geometric k-way:** ``op_partition("PARMETIS", "GEOMKWAY", ...)`` — combined geometric and k-way.
-- **PT-Scotch k-way:** ``op_partition("PTSCOTCH", "KWAY", ...)`` — alternative graph-based partitioner.
-- **Inertial coordinate bisection:** ``op_partition("INERTIAL", ...)`` — built-in, for 3D meshes.
-- **User-defined:** ``op_partition_external()`` — partitioning array supplied externally via an ``op_dat``.
-- **Random:** ``op_partition("RANDOM", ...)`` — for debugging only.
+- **KaHIP k-way:** ``op_partition("KAHIP", "KWAY", ...)`` - k-way graph partitioning using KaHIP.
+- **ParMetis geometric:** ``op_partition("PARMETIS", "GEOM", ...)`` - uses the primary set's coordinates, suitable for geometrically regular meshes.
+- **ParMetis k-way:** ``op_partition("PARMETIS", "KWAY", ...)`` - graph-based k-way partitioning.
+- **ParMetis geometric k-way:** ``op_partition("PARMETIS", "GEOMKWAY", ...)`` - combined geometric and k-way.
+- **PT-Scotch k-way:** ``op_partition("PTSCOTCH", "KWAY", ...)`` - alternative graph-based partitioner.
+- **Inertial coordinate bisection:** ``op_partition("INERTIAL", ...)`` - built-in, for 2D and 3D meshes.
+- **User-defined:** ``op_partition("EXTERNAL", ...)`` - partitioning array supplied externally via an ``op_dat``.
+- **Random:** ``op_partition("RANDOM", ...)`` - for debugging only.
 
-The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.  All secondary sets (e.g. cells, edges) inherit the partitioning from the primary set: for each mapping table, the set element that maximises overlap with an already-partitioned set is assigned to that partition.  After assignment, ``migrate_all()`` migrates data and mappings to new MPI ranks and ``renumber_maps()`` renumbers mapping table entries.
+The geometric partitioners (``GEOM``, ``GEOMKWAY``, ``INERTIAL``) take coordinates from ``op_partition()``'s dat or, without one, from the geometry registered for the set they partition with ``op_set_coords()`` or ``op_set_coords_derived()``.  ``op_partition()`` looks up what each partitioner needs in one table in ``op2/src/mpi/op_mpi_part_core.cpp`` and falls back to block partitioning, saying why, when an input is missing.
+
+The **primary set** (e.g. nodes, given its XY coordinates) is partitioned first.  All secondary sets (e.g. cells, edges) inherit the partitioning from the primary set: for each mapping table, the set element that maximises overlap with an already-partitioned set is assigned to that partition.  After assignment, ``migrate_all()`` migrates data and mappings to new MPI ranks and ``renumber_maps()`` renumbers mapping table entries.  A map entry may name an element that now lives on any rank, so ``renumber_maps()`` looks such elements up in a directory: each set's original indices are split into equal blocks, one per rank, every rank registers the elements it holds with the block that covers them, and asks those blocks for the elements its maps reach.  Beyond each set's ``PartRange`` - one starting index per rank, which ParMETIS takes as well - no step holds data proportional to the number of ranks.
 
 Mesh Renumbering
 ~~~~~~~~~~~~~~~~
 
-OP2 implements a mesh renumbering routine using the Gibbs–Poole–Stockmeyer algorithm from PT-Scotch (``op2/src/externlib/op_renumber.cpp``) to improve cache locality: elements that are executed consecutively should reference data stored at adjacent memory locations.
+``op_renumber()`` (``op2/src/externlib/op_renumber.cpp``) reorders mesh elements to improve cache locality: elements that are executed consecutively should reference data stored at adjacent memory locations.  The orderings need no external library - reverse Cuthill-McKee, Sloan, and a Hilbert space-filling curve, in ``op2/src/externlib/renumber/`` - and ``OP_REORDER`` chooses one; unset, it is the Hilbert curve when the set has geometry and reverse Cuthill-McKee when not.  The Hilbert curve orders by the geometry registered with ``op_set_coords()`` or ``op_set_coords_derived()``.  A derived geometry - cell centroids from node coordinates, say - is only a recipe, evaluated where it is needed: ``op_renumber()`` averages the coordinates each owned element reaches on its own rank, with no communication, and before partitioning ``op_partition()`` can evaluate it on the block layout, asking the owners of coordinates held elsewhere for them, for the geometric partitioners.
 
 .. note::
-   This renumbering currently runs only on a single node (no MPI support).  The recommended workflow is: read an unoptimised mesh into an HDF5 file, apply renumbering to produce an optimised mesh HDF5 file, and use that optimised file for both single-node and distributed-memory runs.
+   ``op_renumber()`` reorders only in the MPI libraries, after ``op_partition()``: each rank reorders its own core elements and every rank then refreshes its import lists.  In the single-node libraries it warns and does nothing: they keep no record of each element's declared position, which ``op_fetch_data()`` and the HDF5 output would need to return data in declaration order, as the MPI libraries do through ``g_index``.
 
 
 Heterogeneous and Hybrid Backends
@@ -409,34 +403,33 @@ To overlap computation with communication on the GPU, the execution is split int
 
 .. code-block:: text
 
-   trigger non-blocking MPI halo exchanges for all dirty op_dats
+   op_mpi_halo_exchanges: launch one gather kernel that packs the export halo of
+                          every dirty op_dat, one block per neighbour rank
+                          post the non-blocking receives
 
    round 0: execute GPU kernel over core elements [0, core_size)
-            (no halo data needed — overlaps with MPI communication)
-   round 1: wait for all MPI communications to complete
-            copy import halo data from host to GPU
+            (no halo data needed - overlaps with the gather and the messages)
+   round 1: op_mpi_wait_all: once the gather has finished, send the blocks
+                             wait for the receives
+                             launch one scatter kernel that unpacks every
+                             received block into the op_dats' halos
             execute GPU kernel over exec-halo elements [core_size, size + exec_size)
 
 With the legacy **color2** strategy, the execution uses block colours to achieve the same overlap:
 
 .. code-block:: text
 
-   for each op_dat requiring a halo exchange:
-       execute CUDA kernel to gather export halo data
-       copy export halo data from GPU to host
-       start non-blocking MPI communication
+   op_mpi_halo_exchanges (as above)
 
    for each colour i:
        if colour == ncolors_core:
-           wait for all MPI communications to complete
-           for each op_dat requiring a halo exchange:
-               copy import halo data from host to GPU
+           op_mpi_wait_all (as above)
        execute CUDA kernel for colour-i mini-partitions
 
 In both variants, the key property is that ``ncolors_core`` (atomics) or the core-element range marks the boundary between locally-computable work and halo-dependent work.
 
 .. note::
-   The above uses PCIe-bridged GPU ↔ host copies for halo data.  When built with GPUDirect support, the intermediate host copy is eliminated and MPI send/receive operations transfer data directly between GPUs over the network fabric.
+   When the MPI library can send from device memory - detected at start-up, or set with ``OP_GPU_DIRECT`` (see :doc:`perf`) - the blocks go to MPI straight from the GPU.  Otherwise they are staged through pinned host buffers: one copy to the host after the gather, one back before the scatter.
 
 CPU Cluster (MPI + OpenMP)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

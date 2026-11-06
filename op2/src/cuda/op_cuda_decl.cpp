@@ -240,9 +240,16 @@ int getSetSizeFromOpArg(op_arg *arg) {
   return arg->opt ? (int)arg->dat->set->size : 0;
 }
 
-void op_renumber(op_map base) { (void)base; }
+/* Reordering is implemented in the MPI libraries only. */
+void op_renumber(op_map base) {
+  (void)base;
+  op_printf("WARNING: op_renumber reorders only in the MPI libraries; nothing is reordered\n");
+}
 
-void op_renumber_ptr(int *ptr){};
+void op_renumber_ptr(int *ptr) {
+  (void)ptr;
+  op_renumber(NULL);
+}
 
 int getHybridGPU() { return OP_hybrid_gpu; }
 
@@ -353,8 +360,8 @@ void op_fetch_data_idx_char(op_dat dat, char *usr_ptr, int low, int high) {
     exit(2);
   }
   // need to copy data into memory pointed to by usr_ptr
-  memcpy((void *)usr_ptr, (void *)&dat->data[low * dat->size],
-         (high + 1) * dat->size);
+  memcpy((void *)usr_ptr, (void *)&dat->data[(size_t)low * dat->size],
+         (size_t)(high - low + 1) * dat->size);
 }
 
 #ifdef __cplusplus

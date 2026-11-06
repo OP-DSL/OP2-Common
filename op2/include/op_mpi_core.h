@@ -55,131 +55,6 @@ extern MPI_Comm OP_MPI_WORLD;
 extern MPI_Comm OP_MPI_GLOBAL;
 
 #endif /* OP_MPI_CORE_NOMPI */
-// Structs that don't need the MPI include
-
-/*******************************************************************************
-* MPI halo list data type
-*******************************************************************************/
-
-typedef struct {
-  // set related to this list
-  op_set set;
-  // number of elements in this list (local elements & indices)
-  idx_l_t size;
-  // MPI ranks to be exported to or imported from
-  int *ranks;
-  // number of MPI neighbors to be exported to or imported from
-  int ranks_size;
-  // displacements for the starting point of each rank's element list (local elements & indices)
-  idx_l_t *disps;
-  // number of elements exported to or imported from each ranks (local elements & indices)
-  idx_l_t *sizes;
-  // the list of all elements (local elements & indices)
-  idx_l_t *list;
-} halo_list_core;
-
-typedef halo_list_core *halo_list;
-
-/*******************************************************************************
-* Data structures related to MPI level partitioning
-*******************************************************************************/
-
-// struct to hold the partition information for each set
-typedef struct {
-  // set to which this partition info blongs to
-  op_set set;
-  // global index of each element held in this MPI process
-  idx_g_t *g_index;
-  // partition to which each element belongs
-  int *elem_part;
-  // indicates if this set is partitioned 1 if partitioned 0 if not
-  int is_partitioned;
-} part_core;
-
-typedef part_core *part;
-
-/*******************************************************************************
-* Data structure to hold mpi communications of an op_dat
-*******************************************************************************/
-#define NAMESIZE 20
-typedef struct {
-  // name of this op_dat
-  char name[NAMESIZE];
-  // size of this op_dat
-  int size;
-  // index of this op_dat
-  int index;
-  // total number of times this op_dat was halo exported
-  int count;
-  // total number of bytes halo exported for this op_dat in this kernel
-  idx_g_t bytes;
-} op_dat_mpi_comm_info_core;
-
-typedef op_dat_mpi_comm_info_core *op_dat_mpi_comm_info;
-
-/*******************************************************************************
-* Data Type to hold MPI performance measures
-*******************************************************************************/
-
-typedef struct {
-
-  // name of kernel
-  char name[NAMESIZE];
-  // total time spent in this kernel (compute + comm - overlap)
-  double time;
-  // number of times this kernel is called
-  int count;
-  // number of op_dat indices in this kernel
-  int num_indices;
-  // array to hold all the op_dat_mpi_comm_info structs for this kernel
-  op_dat_mpi_comm_info *comm_info;
-  // capacity of comm_info array
-  int cap;
-} op_mpi_kernel;
-
-// Structs and functions that use MPI definitions
-#ifndef OP_MPI_CORE_NOMPI
-
-/*******************************************************************************
-* Buffer struct used in non-blocking mpi halo sends/receives
-*******************************************************************************/
-
-typedef struct {
-  // buffer holding exec halo to be exported;
-  char *buf_exec;
-  // buffer holding nonexec halo to be exported;
-  char *buf_nonexec;
-  // pointed to hold the MPI_Reqest for sends
-  MPI_Request *s_req;
-  // pointed to hold the MPI_Reqest for receives
-  MPI_Request *r_req;
-  // number of send MPI_Reqests in flight at a given time for this op_dat
-  int s_num_req;
-  // number of receive MPI_Reqests in flight at a given time for this op_dat
-  int r_num_req;
-} op_mpi_buffer_core;
-
-typedef op_mpi_buffer_core *op_mpi_buffer;
-
-#endif /* OP_MPI_CORE_NOMPI */
-
-/** external variables **/
-
-extern int OP_part_index;
-extern part *OP_part_list;
-extern idx_g_t **orig_part_range;
-
-/** export list on the device **/
-
-extern idx_l_t **export_exec_list_d;
-extern idx_l_t **export_exec_list_disps_d;
-extern idx_l_t **export_nonexec_list_d;
-extern idx_l_t **export_nonexec_list_disps_d;
-extern idx_l_t **export_nonexec_list_partial_d;
-extern idx_l_t **import_nonexec_list_partial_d;
-extern idx_l_t *set_import_buffer_size;
-extern idx_l_t **import_exec_list_disps_d;
-extern idx_l_t **import_nonexec_list_disps_d;
 
 // Structs and functions that use MPI definitions
 #ifndef OP_MPI_CORE_NOMPI
@@ -199,7 +74,7 @@ MPI_Datatype get_mpi_type() {
 }
 
 template <typename T>
-MPI_Datatype get_mpi_type(T* t) {
+MPI_Datatype get_mpi_type(T*) {
   return get_mpi_type<T>();
 }
 
@@ -212,30 +87,6 @@ extern "C" {
 *******************************************************************************/
 
 void decl_partition(op_set set, idx_g_t *g_index, int *partition);
-
-void get_part_range(idx_g_t **part_range, int my_rank, int comm_size,
-                    MPI_Comm Comm);
-
-int get_partition(idx_g_t global_index, idx_g_t *part_range, idx_l_t *local_index,
-                  int comm_size, op_set set);
-
-idx_g_t get_global_index(idx_l_t local_index, int partition, idx_g_t *part_range,
-                     int comm_size);
-
-void find_neighbors_set(halo_list List, int *neighbors, int *sizes,
-                        int *ranks_size, int my_rank, int comm_size,
-                        MPI_Comm Comm);
-
-void create_list(int *list, int *ranks, int *disps, int *sizes, int *ranks_size,
-                 int *total, int *temp_list, int size, int comm_size,
-                 int my_rank);
-
-void create_export_list(op_set set, int *temp_list, halo_list h_list, int size,
-                        int comm_size, int my_rank);
-
-void create_import_list(op_set set, int *temp_list, halo_list h_list,
-                        int total_size, int *ranks, int *sizes, int ranks_size,
-                        int comm_size, int my_rank);
 
 int is_onto_map(op_map map);
 
@@ -271,75 +122,14 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
 void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
                      MPI_Fint local, int soa);
 
-/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
+/* Defined in op_mpi_cuda_decl.cpp */
 size_t op_mv_halo_device(op_set set, op_dat dat);
-
-/* Defined in op_mpi_decl.c, may need to be put in a seperate headder file */
 size_t op_mv_halo_list_device();
 
 void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
-               op_map prime_map, op_dat coords);
-
-/******************************************************************************
-* Custom partitioning wrapper prototypes
-*******************************************************************************/
-
-void op_partition_random(op_set primary_set);
-
-void op_partition_external(op_set primary_set, op_dat partvec);
-
-void op_partition_inertial(op_dat x);
-
-
-#ifdef HAVE_PARMETIS
-/*******************************************************************************
-* ParMetis wrapper prototypes
-*******************************************************************************/
-
-void op_partition_geom(op_dat coords);
-
-void op_partition_geomkway(op_dat coords, op_map primary_map);
-
-void op_partition_meshkway(op_map primary_map); // does not work
-#endif
-
-#if defined(HAVE_KAHIP) || defined(HAVE_PARMETIS)
-/*******************************************************************************
-* K-way partitioning prototype
-*******************************************************************************/
-
-void op_partition_kway(op_map primary_map, bool use_kahip);
-
-#endif
-
-#ifdef HAVE_PTSCOTCH
-/*******************************************************************************
-* PT-SCOTCH wrapper prototypes
-*******************************************************************************/
-
-void op_partition_ptscotch(op_map primary_map);
-#endif
+               op_map prime_map, op_dat data);
 
 void op_move_to_device();
-
-/*******************************************************************************
-* External functions defined in op_mpi_(cuda)_rt_support.c
-*******************************************************************************/
-
-void op_exchange_halo(op_arg *arg, int exec_flag);
-void op_exchange_halo_partial(op_arg *arg, int exec_flag);
-void op_wait_all(op_arg *arg);
-int op_mpi_test(op_arg *arg);
-void op_exchange_halo_cuda(op_arg *arg, int exec_flag);
-void op_exchange_halo_partial_cuda(op_arg *arg, int exec_flag);
-void op_wait_all_cuda(op_arg *arg);
-
-void op_download_buffer_async(char *send_buffer_device, char *send_buffer_host, unsigned size_send);
-void op_upload_buffer_async  (char *recv_buffer_device, char *recv_buffer_host, unsigned size_recv);
-void op_download_buffer_sync();
-void op_gather_record();
-void op_scatter_sync();
-void op_gather_sync();
 
 #ifdef __cplusplus
 }

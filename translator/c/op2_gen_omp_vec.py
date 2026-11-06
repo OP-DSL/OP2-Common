@@ -408,7 +408,7 @@ def op2_gen_omp_vec(master, date, consts, kernels):
       ENDIF()
 
     code('')
-    code('int set_size = op_mpi_halo_exchanges(set, nargs, args);')
+    code('int set_size = op_mpi_halo_exchanges(set, nargs, args, 1);')
 
     code('')
     IF('set_size >0')

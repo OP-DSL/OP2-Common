@@ -97,7 +97,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, N, args);
+  int n_upper = op_mpi_halo_exchanges(set, N, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -127,12 +127,7 @@ void op_par_loop_impl(indices<I...>, void (*kernel)(T *...), char const *name,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 20, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
   (void)std::initializer_list<int>{
       (arguments.idx < -1 ? free(p_a[I]), 0 : 0)...};
 }
@@ -184,7 +179,7 @@ void op_par_loop(void (*kernel)(T0 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 1, args);
+  int n_upper = op_mpi_halo_exchanges(set, 1, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -213,12 +208,7 @@ void op_par_loop(void (*kernel)(T0 *), char const *name, op_set set,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 1, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -262,7 +252,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 2, args);
+  int n_upper = op_mpi_halo_exchanges(set, 2, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -296,12 +286,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *), char const *name, op_set set,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 2, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -351,7 +336,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *), char const *name, op_set set,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 3, args);
+  int n_upper = op_mpi_halo_exchanges(set, 3, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -390,12 +375,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *), char const *name, op_set set,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 3, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -452,7 +432,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 4, args);
+  int n_upper = op_mpi_halo_exchanges(set, 4, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -496,12 +476,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *), char const *name,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 4, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -564,7 +539,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *), char const *name,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 5, args);
+  int n_upper = op_mpi_halo_exchanges(set, 5, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -614,12 +589,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *), char const *name,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 5, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -688,7 +658,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *),
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 6, args);
+  int n_upper = op_mpi_halo_exchanges(set, 6, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -743,12 +713,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *),
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 6, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -824,7 +789,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *),
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 7, args);
+  int n_upper = op_mpi_halo_exchanges(set, 7, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -884,12 +849,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *),
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 7, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -972,7 +932,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *),
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 8, args);
+  int n_upper = op_mpi_halo_exchanges(set, 8, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -1037,12 +997,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *),
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 8, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1132,7 +1087,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 9, args);
+  int n_upper = op_mpi_halo_exchanges(set, 9, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -1202,12 +1157,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 9, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1304,7 +1254,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 10, args);
+  int n_upper = op_mpi_halo_exchanges(set, 10, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -1380,12 +1330,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 10, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1489,7 +1434,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 11, args);
+  int n_upper = op_mpi_halo_exchanges(set, 11, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -1570,12 +1515,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 11, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1685,7 +1625,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 12, args);
+  int n_upper = op_mpi_halo_exchanges(set, 12, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -1771,12 +1711,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 12, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -1892,7 +1827,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 13, args);
+  int n_upper = op_mpi_halo_exchanges(set, 13, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -1983,12 +1918,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 13, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2111,7 +2041,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 14, args);
+  int n_upper = op_mpi_halo_exchanges(set, 14, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -2207,12 +2137,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 14, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2342,7 +2267,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 15, args);
+  int n_upper = op_mpi_halo_exchanges(set, 15, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -2444,12 +2369,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 15, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2586,7 +2506,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 16, args);
+  int n_upper = op_mpi_halo_exchanges(set, 16, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -2693,12 +2613,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 16, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -2841,7 +2756,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 17, args);
+  int n_upper = op_mpi_halo_exchanges(set, 17, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -2953,12 +2868,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 17, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -3108,7 +3018,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 18, args);
+  int n_upper = op_mpi_halo_exchanges(set, 18, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -3225,12 +3135,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 18, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -3387,7 +3292,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 19, args);
+  int n_upper = op_mpi_halo_exchanges(set, 19, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -3510,12 +3415,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 19, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);
@@ -3679,7 +3579,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
   op_timers_core(&cpu_t1, &wall_t1);
 
   // MPI halo exchange and dirty bit setting, if needed
-  int n_upper = op_mpi_halo_exchanges(set, 20, args);
+  int n_upper = op_mpi_halo_exchanges(set, 20, args, 1);
 
   // loop over set elements
   int halo = 0;
@@ -3807,12 +3707,7 @@ void op_par_loop(void (*kernel)(T0 *, T1 *, T2 *, T3 *, T4 *, T5 *, T6 *, T7 *,
 
   // update timer record
   op_timers_core(&cpu_t2, &wall_t2);
-#ifdef COMM_PERF
-  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);
-  op_mpi_perf_comms(k_i, 20, args);
-#else
   op_mpi_perf_time(name, wall_t2 - wall_t1);
-#endif
 
   if (arg0.idx < -1) {
     free(p_a[0]);

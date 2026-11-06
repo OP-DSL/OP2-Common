@@ -149,6 +149,11 @@ int main(int argc, char **argv) {
   op_write_const_hdf5("alpha", 1, "double", (char *)&alpha, "new_grid_out.h5");
   op_write_const_hdf5("qinf", 4, "double", (char *)qinf, "new_grid_out.h5");
 
+  // cells carry no coordinates of their own; their geometry is the mean of
+  // their nodes' coordinates over pcell
+  op_set_coords_derived(cells, pcell, p_x);
+  op_set_coords(nodes, p_x);
+
   // trigger partitioning and halo creation routines
   op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x);
   // op_partition("PARMETIS", "KWAY", edges, pecell, p_x);
