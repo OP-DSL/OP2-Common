@@ -702,41 +702,16 @@ The following parallel versions will be generated from the code generator. These
   #On 4 mpi procs with each proc running 8 OpenMP threads
   export OMP_NUM_THREADS=8; $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
-(4) Code-gen SIMD vectorized and MPI + Code-gen SIMD vectorized, on 4 MPI
-
-.. code-block:: bash
-
-  #SIMD vec
-  ./airfoil_vec
-  #On 4 mpi procs with each proc running SIMD vec
-  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_vec
-
-(5) Code-gen CUDA with mini-partition size of 128 and CUDA thread-block size of 192 and MPI + Code-gen CUDA
+(4) Code-gen CUDA, JIT-compiled through NVRTC, and MPI + Code-gen CUDA
 
 .. code-block:: bash
 
   #On a single GPU
-  ./airfoil_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+  ./airfoil_c_cuda
   #On 4 mpi procs, each proc having a GPU
-  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_cuda OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_c_cuda
 
-(6) MPI + Code-gen hybrid CUDA with mini-partition size of 128 and CUDA thread-block size of 192
-
-  The hybrid version can be run on both CPUs and GPUs at the same time. If there is only 4 GPUs are available the following execution will allocated 4 MPI procs to be run on 4 GPUs and 8 MPI procs allocated to the remaining CPU cores.
-
-.. code-block:: bash
-
-  #On 12 mpi procs
-  $MPI_INSTALL_PATH/bin/mpirun -np 12 ./airfoil_mpi_cuda_hyb OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-
-(7) Code-gen OpenACC with mini-partition size of 128 and thread-block size of 192 and MPI + Code-gen OpenACC
-
-.. code-block:: bash
-
-  #On a single GPU
-  ./airfoil_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192
-  #On 4 mpi procs, each proc having a GPU
-  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_openacc OP_PART_SIZE=128 OP_BLOCK_SIZE=192
+The HIP build (``airfoil_c_hip``) runs the same way. Airfoil has no ``cuda`` or ``hip`` build: its ``update`` loop reports where an error occurs through :c:func:`op_arg_info`, which those targets don't support.
 
 
 Optimizations
