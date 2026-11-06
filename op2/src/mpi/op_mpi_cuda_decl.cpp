@@ -35,15 +35,21 @@
 //
 
 #include <mpi.h>
-#include <op2/env.h>
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
+#include <op2/env.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
 
+#include <op2/mpi/halo.h>
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
+
+using op::mpi::DeviceList;
+using op::mpi::DeviceMapHalo;
+using op::mpi::DeviceSetHalo;
+using op::mpi::HaloList;
 #include <op_util.h>
 #include <vector>
 
@@ -58,6 +64,19 @@ MPI_Comm OP_MPI_GLOBAL;
 // CUDA-specific OP2 functions
 //
 
+// What op_init and op_mpi_init share once MPI is up: the communicators, then
+// the library's parts in order.
+static void init_parts(int argc, char **argv, int diags, MPI_Comm world, MPI_Comm global) {
+  OP_MPI_WORLD = world;
+  OP_MPI_GLOBAL = global;
+  op_init_core(argc, argv, diags);
+
+  cutilDeviceInit(argc, argv);
+  op_gpu_direct_init();
+  op_mpi_halo_exchanges_init();
+  op::env::finish();
+}
+
 void op_init(int argc, char **argv, int diags) {
   op_init_soa(argc, argv, diags, 0);
 }
@@ -69,12 +88,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   if (!flag) {
     MPI_Init(&argc, &argv);
   }
-  OP_MPI_WORLD = MPI_COMM_WORLD;
-  OP_MPI_GLOBAL = MPI_COMM_WORLD;
-  op_init_core(argc, argv, diags);
-
-  cutilDeviceInit(argc, argv);
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_COMM_WORLD, MPI_COMM_WORLD);
 }
 
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
@@ -92,12 +106,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
            "communicators\n");
     exit(-1);
   }
-  OP_MPI_WORLD = MPI_Comm_f2c(local);
-  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
-  op_init_core(argc, argv, diags);
-
-  cutilDeviceInit(argc, argv);
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_Comm_f2c(local), MPI_Comm_f2c(global));
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
@@ -121,35 +130,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 }
 
 op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
-  op_dat overlay_dat = op_decl_dat_overlay_core(set, dat);
-
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)overlay_dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra)
-                                         * (size_t)overlay_dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-
-  overlay_dat->mpi_buffer = mpi_buf;
-
-  return overlay_dat;
+  return op_decl_dat_overlay_core(set, dat);
 }
 
 op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
@@ -165,9 +146,8 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
     }
   }
 
-  if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
-  }
+  if (item_dat == NULL)
+    op::mpi::fail("ERROR: op_dat not found for dat with %p pointer\n", (void *)dat);
 
   return op_decl_dat_overlay(set, item_dat);
 }
@@ -177,73 +157,22 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
   op_dat dat = op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 
   // create empty data block to assign to this temporary dat (including the
-  // halos)
-  size_t set_size = (size_t)set->size + (size_t)OP_import_exec_list[set->index]->size
-                                      + (size_t)OP_import_nonexec_list[set->index]->size;
+  // halos, none before partitioning)
+  size_t set_size = (size_t)set->size + set->exec_size + set->nonexec_size;
 
   // transpose
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    cutilSafeCall(
-        op_deviceMalloc((void **)&(dat->buffer_d_r),
-                   (size_t)dat->size * ((size_t)OP_import_exec_list[set->index]->size +
-                                        (size_t)OP_import_nonexec_list[set->index]->size)));
-
-    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size));
-    op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size));
+    cutilSafeCall(op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size)));
+    cutilSafeCall(op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size)));
   } else {
-    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size);
-    op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size);
+    cutilSafeCall(op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size));
+    cutilSafeCall(op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size));
   }
-
-  // need to allocate mpi_buffers for this new temp_dat
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[dat->set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra) * (size_t)dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[dat->set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-  dat->mpi_buffer = mpi_buf;
-
-  // need to allocate device buffers for mpi comms for this new temp_dat
-  cutilSafeCall(op_deviceMalloc((void **)&(dat->buffer_d),
-      (size_t)dat->size * (OP_export_exec_list[set->index]->size +
-                           OP_export_nonexec_list[set->index]->size +
-                           set_import_buffer_size[set->index])));
 
   return dat;
 }
 
 int op_free_dat_temp_char(op_dat dat) {
-  // need to free mpi_buffers use in this op_dat
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
-  free(dat->mpi_buffer);
-
-  // need to free device buffers used in mpi comms
-  cutilSafeCall(gpuFree(dat->buffer_d));
-
-  if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    cutilSafeCall(gpuFree(dat->buffer_d_r));
-  }
-
   // free data on device
   cutilSafeCall(gpuFree(dat->data_d));
   return op_free_dat_temp_core(dat);
@@ -252,8 +181,7 @@ int op_free_dat_temp_char(op_dat dat) {
 size_t op_mv_halo_device(op_set set, op_dat dat) {
   size_t total_size = 0;
 
-  idx_g_t set_size = set->size + OP_import_exec_list[set->index]->size +
-                 OP_import_nonexec_list[set->index]->size;
+  idx_g_t set_size = set->size + set->exec_size + set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
     char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));
     int element_size = (size_t)dat->size / dat->dim;
@@ -270,16 +198,6 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
     free(temp_data);
 
     total_size += (size_t)dat->size * round32(set_size) * sizeof(char);
-
-    if (dat->buffer_d_r != NULL) cutilSafeCall(gpuFree(dat->buffer_d_r));
-    cutilSafeCall(
-        op_deviceMalloc((void **)&(dat->buffer_d_r),
-                   (size_t)dat->size * (OP_import_exec_list[set->index]->size +
-                                        OP_import_nonexec_list[set->index]->size)));
-
-    total_size += (size_t)dat->size * (OP_import_exec_list[set->index]->size +
-                                       OP_import_nonexec_list[set->index]->size);
-
   } else {
     op_cpHostToDevice((void **)&(dat->data_d), (void **)&(dat->data),
                       (size_t)dat->size * set_size);
@@ -287,219 +205,40 @@ size_t op_mv_halo_device(op_set set, op_dat dat) {
     total_size += (size_t)dat->size * set_size * sizeof(char);
   }
   dat->dirty_hd = 0;
-  if (dat->buffer_d != NULL) cutilSafeCall(gpuFree(dat->buffer_d));
-  cutilSafeCall(
-      op_deviceMalloc((void **)&(dat->buffer_d),
-                 (size_t)dat->size * (OP_export_exec_list[set->index]->size +
-                                      OP_export_nonexec_list[set->index]->size +
-                                      set_import_buffer_size[set->index])));
-
-  total_size += (size_t)dat->size * (OP_export_exec_list[set->index]->size +
-                                     OP_export_nonexec_list[set->index]->size +
-                                     set_import_buffer_size[set->index]);
 
   return total_size;
 }
 
+/* Upload every list the unified exchange reads on the device, replacing (and so
+   freeing) any earlier copies: after op_renumber the host lists have changed. */
 size_t op_mv_halo_list_device() {
   size_t total_size = 0;
+  auto upload = [&](const HaloList &list) {
+    /* op_cpHostToDevice takes the host pointer by address: hand it a plain
+       pointer, never the address of the owner, which a (void **) cast would
+       accept without complaint. */
+    idx_l_t *device = nullptr;
+    void *host = list.list.get();
+    const size_t bytes = list.size() * sizeof(idx_l_t);
+    op_cpHostToDevice((void **)&device, &host, bytes);
+    total_size += bytes;
+    return DeviceList(device);
+  };
 
-  if (export_exec_list_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_exec_list_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_exec_list_d[OP_set_list[s]->index]));
-    free(export_exec_list_d);
-  }
-  export_exec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
+  OP_set_halos_d = std::vector<DeviceSetHalo>(OP_set_index);
+  for (int s = 0; s < OP_set_index; s++) {
     op_set set = OP_set_list[s];
-    export_exec_list_d[set->index] = NULL;
-
-    op_cpHostToDevice((void **)&(export_exec_list_d[set->index]),
-                      (void **)&(OP_export_exec_list[set->index]->list),
-                      OP_export_exec_list[set->index]->size * sizeof(int));
-
-    total_size += OP_export_exec_list[set->index]->size * sizeof(int);
+    OP_set_halos_d[set->index].export_exec = upload(OP_set_halos[set->index].export_exec);
+    OP_set_halos_d[set->index].export_nonexec = upload(OP_set_halos[set->index].export_nonexec);
   }
 
-  if (export_nonexec_list_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_nonexec_list_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_d[OP_set_list[s]->index]));
-    free(export_nonexec_list_d);
-  }
-  export_nonexec_list_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    export_nonexec_list_d[set->index] = NULL;
-
-    op_cpHostToDevice((void **)&(export_nonexec_list_d[set->index]),
-                      (void **)&(OP_export_nonexec_list[set->index]->list),
-                      OP_export_nonexec_list[set->index]->size * sizeof(int));
-
-    total_size += OP_export_nonexec_list[set->index]->size * sizeof(int);
-  }
-
-  //for grouped, we need the disps array on device too
-  if (export_exec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_exec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_exec_list_disps_d[OP_set_list[s]->index]));
-    free(export_exec_list_disps_d);
-  }
-  export_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    export_exec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_export_exec_list[set->index]
-        ->disps[OP_export_exec_list[set->index]->ranks_size] =
-        OP_export_exec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_export_exec_list[set->index]
-                      ->disps[OP_export_exec_list[set->index]->ranks_size - 1] +
-                  OP_export_exec_list[set->index]
-                      ->sizes[OP_export_exec_list[set->index]->ranks_size - 1];
-    op_cpHostToDevice((void **)&(export_exec_list_disps_d[set->index]),
-                      (void **)&(OP_export_exec_list[set->index]->disps),
-                      (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_export_exec_list[set->index]->ranks_size+1) * sizeof(int);
-  }
-
-  if (export_nonexec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (export_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_disps_d[OP_set_list[s]->index]));
-    free(export_nonexec_list_disps_d);
-  }
-  export_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    export_nonexec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_export_nonexec_list[set->index]
-        ->disps[OP_export_nonexec_list[set->index]->ranks_size] =
-        OP_export_nonexec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_export_nonexec_list[set->index]
-                      ->disps[OP_export_nonexec_list[set->index]->ranks_size -
-                              1] +
-                  OP_export_nonexec_list[set->index]
-                      ->sizes[OP_export_nonexec_list[set->index]->ranks_size -
-                              1];
-    op_cpHostToDevice((void **)&(export_nonexec_list_disps_d[set->index]),
-                      (void **)&(OP_export_nonexec_list[set->index]->disps),
-                      (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_export_nonexec_list[set->index]->ranks_size+1) * sizeof(int);
-  }
-  if (import_exec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (import_exec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(import_exec_list_disps_d[OP_set_list[s]->index]));
-    free(import_exec_list_disps_d);
-  }
-  import_exec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    import_exec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_import_exec_list[set->index]
-        ->disps[OP_import_exec_list[set->index]->ranks_size] =
-        OP_import_exec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_import_exec_list[set->index]
-                      ->disps[OP_import_exec_list[set->index]->ranks_size - 1] +
-                  OP_import_exec_list[set->index]
-                      ->sizes[OP_import_exec_list[set->index]->ranks_size - 1];
-    op_cpHostToDevice((void **)&(import_exec_list_disps_d[set->index]),
-                      (void **)&(OP_import_exec_list[set->index]->disps),
-                      (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_import_exec_list[set->index]->ranks_size+1) * sizeof(int);
-  }
-
-  if (import_nonexec_list_disps_d != NULL) {
-    for (int s = 0; s < OP_set_index; s++)
-      if (import_nonexec_list_disps_d[OP_set_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(import_nonexec_list_disps_d[OP_set_list[s]->index]));
-    free(import_nonexec_list_disps_d);
-  }
-  import_nonexec_list_disps_d = (int **)xmalloc(sizeof(int *) * OP_set_index);
-
-  for (int s = 0; s < OP_set_index; s++) { // for each set
-    op_set set = OP_set_list[s];
-    import_nonexec_list_disps_d[set->index] = NULL;
-
-    //make sure end size is there too
-    OP_import_nonexec_list[set->index]
-        ->disps[OP_import_nonexec_list[set->index]->ranks_size] =
-        OP_import_nonexec_list[set->index]->ranks_size == 0
-            ? 0
-            : OP_import_nonexec_list[set->index]
-                      ->disps[OP_import_nonexec_list[set->index]->ranks_size -
-                              1] +
-                  OP_import_nonexec_list[set->index]
-                      ->sizes[OP_import_nonexec_list[set->index]->ranks_size -
-                              1];
-    op_cpHostToDevice((void **)&(import_nonexec_list_disps_d[set->index]),
-                      (void **)&(OP_import_nonexec_list[set->index]->disps),
-                      (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int));
-
-    total_size += (OP_import_nonexec_list[set->index]->ranks_size+1) * sizeof(int);
-  }
-
-  if ( export_nonexec_list_partial_d!= NULL) {
-    for (int s = 0; s < OP_map_index; s++)
-      if (OP_map_partial_exchange[s] && export_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_partial_d[OP_map_list[s]->index]));
-    free(export_nonexec_list_partial_d);
-  }
-  export_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
-
-  for (int s = 0; s < OP_map_index; s++) { // for each set
-    if (!OP_map_partial_exchange[s])
+  OP_map_halos_d = std::vector<DeviceMapHalo>(OP_map_index);
+  for (int m = 0; m < (int)OP_map_halos.size(); m++) {
+    if (!OP_map_partial_exchange[m])
       continue;
-    op_map map = OP_map_list[s];
-    export_nonexec_list_partial_d[map->index] = NULL;
-
-    op_cpHostToDevice((void **)&(export_nonexec_list_partial_d[map->index]),
-                      (void **)&(OP_export_nonexec_permap[map->index]->list),
-                      OP_export_nonexec_permap[map->index]->size * sizeof(int));
-
-    total_size += OP_export_nonexec_permap[map->index]->size * sizeof(int);
+    OP_map_halos_d[m].export_nonexec = upload(OP_map_halos[m].export_nonexec);
+    OP_map_halos_d[m].import_nonexec = upload(OP_map_halos[m].import_nonexec);
   }
-
-  if ( import_nonexec_list_partial_d!= NULL) {
-    for (int s = 0; s < OP_map_index; s++)
-      if (OP_map_partial_exchange[s] && import_nonexec_list_partial_d[OP_map_list[s]->index] != NULL)
-        cutilSafeCall(gpuFree(import_nonexec_list_partial_d[OP_map_list[s]->index]));
-    free(import_nonexec_list_partial_d);
-  }
-  import_nonexec_list_partial_d = (int **)calloc(sizeof(int *) * OP_map_index,1);
-
-  for (int s = 0; s < OP_map_index; s++) { // for each set
-    if (!OP_map_partial_exchange[s])
-      continue;
-    op_map map = OP_map_list[s];
-    import_nonexec_list_partial_d[map->index] = NULL;
-
-    op_cpHostToDevice((void **)&(import_nonexec_list_partial_d[map->index]),
-                      (void **)&(OP_import_nonexec_permap[map->index]->list),
-                      OP_import_nonexec_permap[map->index]->size * sizeof(int));
-
-    total_size += OP_import_nonexec_permap[map->index]->size * sizeof(int);
-  }
-
   return total_size;
 }
 
@@ -527,49 +266,14 @@ void op_timers(double *cpu, double *et) {
   op_timers_core(cpu, et);
 }
 
-//
-// This function is defined in the generated master kernel file
-// so that it is possible to check on the runtime size of the
-// data in cases where it is not known at compile time
-//
-
-/*
-void
-op_decl_const_char ( int dim, char const * type, int size, char * dat,
-                     char const * name )
-{
-  cutilSafeCall ( gpuMemcpyToSymbol ( name, dat, dim * size, 0,
-                                       gpuMemcpyHostToDevice ) );
-}
-*/
-
 void op_exit() {
-  // need to free buffer_d used for mpi comms in each op_dat
-  if (OP_hybrid_gpu) {
-    op_dat_entry *item;
-    TAILQ_FOREACH(item, &OP_dat_list, entries) {
-      if (strstr(item->dat->type, ":soa") != NULL ||
-          (OP_auto_soa && item->dat->dim > 1)) {
-        cutilSafeCall(gpuFree((item->dat)->buffer_d_r));
-      }
-      cutilSafeCall(gpuFree((item->dat)->buffer_d));
-    }
-
-    for (int i = 0; i < OP_set_index; i++) {
-      if (export_exec_list_d[i] != NULL)
-        cutilSafeCall(gpuFree(export_exec_list_d[i]));
-      if (export_nonexec_list_d[i] != NULL)
-        cutilSafeCall(gpuFree(export_nonexec_list_d[i]));
-    }
-    for (int i = 0; i < OP_map_index; i++) {
-      if (!OP_map_partial_exchange[i])
-        continue;
-      cutilSafeCall(gpuFree(export_nonexec_list_partial_d[i]));
-      cutilSafeCall(gpuFree(import_nonexec_list_partial_d[i]));
-    }
-  }
-
   op_mpi_exit();
+
+  // free the device halo lists once the last exchange is done with them, while
+  // the device is still up
+  OP_set_halos_d = std::vector<DeviceSetHalo>();
+  OP_map_halos_d = std::vector<DeviceMapHalo>();
+
   op_cuda_exit(); // frees dat_d memory
   op_rt_exit();   // frees plan memory
   op_exit_core(); // frees lib core variables
@@ -581,91 +285,12 @@ void op_exit() {
 }
 
 void op_timing_output() {
+  double max_plan_time = 0.0;
+  MPI_Reduce(&OP_plan_time, &max_plan_time, 1, MPI_DOUBLE, MPI_MAX, 0, OP_MPI_WORLD);
   op_timing_output_core();
-  printf("Total plan time: %8.4f\n", OP_plan_time);
-}
-
-void op_timings_to_csv(const char *outputFileName) {
-  int comm_size, comm_rank;
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-  MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
-
-  FILE * outputFile = NULL;
-  if (op_is_root()) {
-    outputFile = fopen(outputFileName, "w");
-    if (outputFile == NULL) {
-      printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
-    }
-    else {
-      fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
-    }
-  }
-
-  int can_write = (outputFile != NULL);
-  MPI_Bcast(&can_write, 1, MPI_INT, MPI_ROOT, OP_MPI_WORLD);
-
-  if (can_write) {
-    for (int n = 0; n < OP_kern_max; n++) {
-      if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
-            OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the
-          // older
-          // translator with older timing logic. Adjust to new logic:
-          OP_kernels[n].times[0] = OP_kernels[n].time;
-        }
-
-        if (op_is_root()) {
-          std::vector<double> times(OP_kernels[n].ntimes * comm_size);
-          for (int i=0; i<(OP_kernels[n].ntimes*comm_size); i++) times[i] = 0.0f;
-          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times.data(), OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<float> plan_times(comm_size);
-          for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<double> mpi_times(comm_size, 0.0);
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times.data(), 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<float> transfers(comm_size, 0.0f);
-          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<float> transfers2(comm_size, 0.0f);
-          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          // Have data, now write:
-          for (int p=0 ; p<comm_size ; p++) {
-            for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
-              double kern_time = times[p*OP_kernels[n].ntimes + thr];
-
-              fprintf(outputFile, "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n", p, thr,
-                      comm_size, OP_kernels[n].ntimes, OP_kernels[n].count,
-                      kern_time, plan_times[p], mpi_times[p],
-                      transfers[p] / 1e9f, transfers2[p] / 1e9f,
-                      OP_kernels[n].name);
-            }
-          }
-        }
-        else {
-          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-        }
-
-        op_mpi_barrier();
-      }
-    }
-  }
-
-  if (op_is_root() && outputFile != NULL) {
-    fclose(outputFile);
-  }
+  if (op_is_root())
+    printf("Total plan time: %8.4f\n", max_plan_time);
+  mpi_timing_output();
 }
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
@@ -698,8 +323,7 @@ void op_upload_all() {
   op_dat_entry *item;
   TAILQ_FOREACH(item, &OP_dat_list, entries) {
     op_dat dat = item->dat;
-    idx_g_t set_size = dat->set->size + OP_import_exec_list[dat->set->index]->size +
-                   OP_import_nonexec_list[dat->set->index]->size;
+    idx_g_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
     if (dat->data_d) {
       if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
         char *temp_data = (char *)malloc((size_t)dat->size * round32(set_size) * sizeof(char));

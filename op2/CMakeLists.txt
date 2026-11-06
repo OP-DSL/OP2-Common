@@ -85,6 +85,8 @@ set(_op2_backend_mpi_backbone_srcs
     "${_src}/mpi/op_mpi_part_core.cpp"
     "${_src}/mpi/op_mpi_hdf5.cpp"
     "${_src}/mpi/op_mpi_util.cpp"
+    "${_src}/mpi/op_mpi_unified_exchanges.cpp"
+    "${_src}/mpi/op_mpi_unified_host.cpp"
     "${_src}/externlib/op_util.cpp"
     "${_src}/externlib/op_renumber.cpp"
 )
@@ -102,7 +104,7 @@ set(_op2_backend_mpi_cuda_overlay_srcs
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
     "${_src}/mpi/op_mpi_cuda_decl.cpp"
     "${_src}/mpi/op_mpi_cuda_rt_support.cpp"
-    "${_src}/mpi/op_mpi_cuda_kernels.cu"
+    "${_src}/mpi/op_mpi_cuda_unified_kernels.cu"
 )
 
 # --- Fortran groups ------------------------------------------------------
@@ -286,6 +288,9 @@ function(_op2_link_partitioners tgt)
     endif()
     if(ParMETIS_FOUND)
         target_link_libraries(${tgt} PRIVATE "${ParMETIS_LIBRARY}" "${METIS_LIBRARY}")
+        if(GKlib_LIBRARY)
+            target_link_libraries(${tgt} PRIVATE "${GKlib_LIBRARY}")
+        endif()
         target_include_directories(${tgt} PRIVATE
             "${ParMETIS_INCLUDE_DIR}" "${METIS_INCLUDE_DIR}")
         target_compile_definitions(${tgt} PRIVATE HAVE_PARMETIS PARMETIS_VER_4)

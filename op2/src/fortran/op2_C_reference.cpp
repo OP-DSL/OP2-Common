@@ -174,7 +174,7 @@ void op_args_check(op_set set, int nargs, op_arg *args,
     int n_upper;                                                        \
     BLANK_REALLOC_LIST(N)                                               \
     ALLOC_POINTER_LIST(N)                                               \
-    n_upper = op_mpi_halo_exchanges (set, N, args);                     \
+    n_upper = op_mpi_halo_exchanges (set, N, args, 1);                  \
     if ( n_upper == 0 ) {                                               \
       op_mpi_wait_all (N,args);                                         \
       op_mpi_set_dirtybit (N, args);                                    \

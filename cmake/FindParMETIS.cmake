@@ -24,6 +24,8 @@
 #   ParMETIS_LIBRARY     - libparmetis
 #   METIS_INCLUDE_DIR    - directory holding metis.h
 #   METIS_LIBRARY        - libmetis
+#   GKlib_LIBRARY        - libGKlib, optional: METIS 5.2 builds without it
+#                          embedded need it linked after libmetis
 
 include(FindPackageHandleStandardArgs)
 
@@ -47,6 +49,9 @@ find_path(METIS_INCLUDE_DIR NAMES metis.h
     HINTS ${_metis_hints} PATH_SUFFIXES include)
 
 find_library(METIS_LIBRARY NAMES metis
+    HINTS ${_metis_hints} PATH_SUFFIXES lib lib64)
+
+find_library(GKlib_LIBRARY NAMES GKlib
     HINTS ${_metis_hints} PATH_SUFFIXES lib lib64)
 
 # Validate 64-bit index width via a compile-time sizeof check on idx_t.
@@ -99,4 +104,5 @@ find_package_handle_standard_args(ParMETIS
     REQUIRED_VARS ParMETIS_INCLUDE_DIR ParMETIS_LIBRARY METIS_LIBRARY ParMETIS_HAS_IDX64
     FAIL_MESSAGE  "ParMETIS not found or built with 32-bit indices (set ParMETIS_ROOT and METIS_ROOT and rebuild with --64bit-indices)")
 
-mark_as_advanced(ParMETIS_INCLUDE_DIR ParMETIS_LIBRARY METIS_INCLUDE_DIR METIS_LIBRARY ParMETIS_HAS_IDX64)
+mark_as_advanced(ParMETIS_INCLUDE_DIR ParMETIS_LIBRARY METIS_INCLUDE_DIR METIS_LIBRARY GKlib_LIBRARY
+                 ParMETIS_HAS_IDX64)

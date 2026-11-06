@@ -37,6 +37,7 @@
 
 #include <mpi.h>
 #include <op2/env.h>
+#include <op2/mpi/halo.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
 #include <op_lib_mpi.h>
@@ -58,6 +59,16 @@ MPI_Comm OP_MPI_GLOBAL;
  * op_lib.cu provides wrappers for CUDA version
  */
 
+// What op_init and op_mpi_init share once MPI is up: the communicators, then
+// the library's parts in order.
+static void init_parts(int argc, char **argv, int diags, MPI_Comm world, MPI_Comm global) {
+  OP_MPI_WORLD = world;
+  OP_MPI_GLOBAL = global;
+  op_init_core(argc, argv, diags);
+  op_mpi_halo_exchanges_init();
+  op::env::finish();
+}
+
 void op_init_soa(int argc, char **argv, int diags, int soa) {
   OP_auto_soa = soa;
   op_init(argc, argv, diags);
@@ -68,10 +79,7 @@ void op_init(int argc, char **argv, int diags) {
   if (!flag) {
     MPI_Init(&argc, &argv);
   }
-  OP_MPI_WORLD = MPI_COMM_WORLD;
-  OP_MPI_GLOBAL = MPI_COMM_WORLD;
-  op_init_core(argc, argv, diags);
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_COMM_WORLD, MPI_COMM_WORLD);
 }
 
 void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
@@ -89,24 +97,13 @@ void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
            "communicators\n");
     exit(-1);
   }
-  OP_MPI_WORLD = MPI_Comm_f2c(local);
-  OP_MPI_GLOBAL = MPI_Comm_f2c(global);
-
-  op_init_core(argc, argv, diags);
-  op::env::finish();
+  init_parts(argc, argv, diags, MPI_Comm_f2c(local), MPI_Comm_f2c(global));
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
   if (set == NULL)
     return NULL;
-  /*char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
-  if (d == NULL && set->size>0) {
-    printf(" op_decl_dat_char error -- error allocating memory to dat\n");
-    exit(-1);
-  }
-  memcpy(d, data, sizeof(char) * set->size * dim * size);
-  op_dat out_dat = op_decl_dat_core(set, dim, type, size, d, name);*/
   op_dat out_dat = op_decl_dat_core(set, dim, type, size, data, name);
 
   op_dat_entry *item;
@@ -126,35 +123,7 @@ op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
 }
 
 op_dat op_decl_dat_overlay(op_set set, op_dat dat) {
-  op_dat overlay_dat = op_decl_dat_overlay_core(set, dat);
-
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)overlay_dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra)
-                                         * (size_t)overlay_dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-
-  overlay_dat->mpi_buffer = mpi_buf;
-
-  return overlay_dat;
+  return op_decl_dat_overlay_core(set, dat);
 }
 
 op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
@@ -170,57 +139,18 @@ op_dat op_decl_dat_overlay_ptr(op_set set, char *dat) {
     }
   }
 
-  if (item_dat == NULL) {
-    printf("ERROR: op_dat not found for dat with %p pointer\n", dat);
-  }
+  if (item_dat == NULL)
+    op::mpi::fail("ERROR: op_dat not found for dat with %p pointer\n", (void *)dat);
 
   return op_decl_dat_overlay(set, item_dat);
 }
 
 op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
                              char const *name) {
-  op_dat dat = op_decl_dat_temp_core(set, dim, type, size, NULL, name);
-
-  // create empty data block to assign to this temporary dat (including the
-  // halos)
-
-  // need to allocate mpi_buffers for this new temp_dat
-  op_mpi_buffer mpi_buf = (op_mpi_buffer)xmalloc(sizeof(op_mpi_buffer_core));
-
-  halo_list exec_e_list = OP_export_exec_list[dat->set->index];
-  halo_list nonexec_e_list = OP_export_nonexec_list[dat->set->index];
-
-  mpi_buf->buf_exec = (char *)xmalloc((size_t)(exec_e_list->size) * (size_t)dat->size);
-
-  size_t import_extra = OP_partial_exchange ? set_import_buffer_size[set->index] : 0;
-  mpi_buf->buf_nonexec = (char *)xmalloc(((size_t)(nonexec_e_list->size) + import_extra) * (size_t)dat->size);
-
-  halo_list exec_i_list = OP_import_exec_list[dat->set->index];
-  halo_list nonexec_i_list = OP_import_nonexec_list[dat->set->index];
-
-  mpi_buf->s_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_e_list->ranks_size + nonexec_e_list->ranks_size));
-  mpi_buf->r_req = (MPI_Request *)xmalloc(
-      sizeof(MPI_Request) *
-      (exec_i_list->ranks_size + nonexec_i_list->ranks_size));
-
-  mpi_buf->s_num_req = 0;
-  mpi_buf->r_num_req = 0;
-  dat->mpi_buffer = mpi_buf;
-
-  return dat;
+  return op_decl_dat_temp_core(set, dim, type, size, NULL, name);
 }
 
-int op_free_dat_temp_char(op_dat dat) {
-  // need to free mpi_buffers used in this op_dat
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_exec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->s_req);
-  free(((op_mpi_buffer)(dat->mpi_buffer))->r_req);
-  free(dat->mpi_buffer);
-  return op_free_dat_temp_core(dat);
-}
+int op_free_dat_temp_char(op_dat dat) { return op_free_dat_temp_core(dat); }
 
 void op_upload_all() {}
 
@@ -306,7 +236,6 @@ void op_print(const char *line) {
 }
 
 void op_exit() {
-
   op_mpi_exit();
   op_rt_exit();
   op_exit_core();
@@ -330,97 +259,8 @@ void op_timing_output() {
              OP_MPI_WORLD);
   op_timing_output_core();
   if (op_is_root())
-    printf("Total plan time: %8.4f\n", OP_plan_time);
+    printf("Total plan time: %8.4f\n", max_plan_time);
   mpi_timing_output();
-}
-
-void op_timings_to_csv(const char *outputFileName) {
-  int comm_size, comm_rank;
-  MPI_Comm_size(OP_MPI_WORLD, &comm_size);
-  MPI_Comm_rank(OP_MPI_WORLD, &comm_rank);
-
-  FILE * outputFile = NULL;
-  if (op_is_root()) {
-    outputFile = fopen(outputFileName, "w");
-    if (outputFile == NULL) {
-      printf("ERROR: Failed to open file for writing: '%s'\n", outputFileName);
-    }
-    else {
-      fprintf(outputFile, "rank,thread,nranks,nthreads,count,total time,plan time,mpi time,GB used,GB total,kernel name\n");
-    }
-  }
-
-  int can_write = (outputFile != NULL);
-  MPI_Bcast(&can_write, 1, MPI_INT, MPI_ROOT, OP_MPI_WORLD);
-
-  if (can_write) {
-    for (int n = 0; n < OP_kern_max; n++) {
-      op_mpi_barrier();
-      if (OP_kernels[n].count > 0) {
-        if (OP_kernels[n].ntimes == 1 && OP_kernels[n].times[0] == 0.0f &&
-            OP_kernels[n].time != 0.0f) {
-          // This library is being used by an OP2 translation made with the
-          // older
-          // translator with older timing logic. Adjust to new logic:
-          OP_kernels[n].times[0] = OP_kernels[n].time;
-        }
-
-        if (op_is_root()) {
-          std::vector<double> times(OP_kernels[n].ntimes*comm_size);
-          for (int i=0; i<(OP_kernels[n].ntimes*comm_size); i++) times[i] = 0.0f;
-          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, times.data(), OP_kernels[n].ntimes, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<float> plan_times(comm_size);
-          for (int i=0; i<comm_size; i++) plan_times[i] = 0.0f;
-          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, plan_times.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<double> mpi_times(comm_size, 0.0);
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, mpi_times.data(), 1, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<float> transfers(comm_size, 0.0f);
-          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, transfers.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          std::vector<float> transfers2(comm_size, 0.0f);
-          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, transfers2.data(), 1, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          // Have data, now write:
-          for (int p=0 ; p<comm_size ; p++) {
-            for (int thr=0; thr<OP_kernels[n].ntimes; thr++) {
-              double kern_time = times[p*OP_kernels[n].ntimes + thr];
-              if (thr==0)
-                fprintf(outputFile, "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n", p,
-                        thr, comm_size, OP_kernels[n].ntimes,
-                        OP_kernels[n].count, kern_time, plan_times[p],
-                        mpi_times[p], transfers[p] / 1e9f, transfers2[p] / 1e9f,
-                        OP_kernels[n].name);
-              else
-                fprintf(outputFile, "%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%s\n", p,
-                        thr, comm_size, OP_kernels[n].ntimes,
-                        OP_kernels[n].count, kern_time, 0.0f, 0.0f, 0.0f, 0.0f,
-                        OP_kernels[n].name);
-            }
-          }
-        }
-        else {
-          MPI_Gather(OP_kernels[n].times, OP_kernels[n].ntimes, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].plan_time), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].mpi_time), 1, MPI_DOUBLE, NULL, 0, MPI_DOUBLE, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].transfer), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-
-          MPI_Gather(&(OP_kernels[n].transfer2), 1, MPI_FLOAT, NULL, 0, MPI_FLOAT, MPI_ROOT, OP_MPI_WORLD);
-        }
-
-        op_mpi_barrier();
-      }
-    }
-  }
-
-  if (op_is_root() && outputFile != NULL) {
-    fclose(outputFile);
-  }
 }
 
 void op_print_dat_to_binfile(op_dat dat, const char *file_name) {
@@ -441,25 +281,4 @@ void op_print_dat_to_txtfile(op_dat dat, const char *file_name) {
   free(temp->data);
   free(temp->set);
   free(temp);
-}
-
-void op_debug_arg(int n, op_arg arg) {
-  op_dat dat;
-
-  dat = arg.dat;
-
-  int my_rank;
-  op_rank(&my_rank);
-
-  if (arg.argtype == OP_ARG_DAT) {
-    printf("NJH %i debug %s\n", my_rank, dat->name);
-    printf("NJH %i debug %p\n", my_rank,
-           ((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-
-    if (n == 3 && (strcmp(dat->name, "dist") == 0)) {
-      printf("NJH %i trying free here...\n", my_rank);
-      free(((op_mpi_buffer)(dat->mpi_buffer))->buf_nonexec);
-      printf("NJH %i succeeded free here...\n", my_rank);
-    };
-  }
 }
