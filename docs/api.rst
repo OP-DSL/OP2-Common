@@ -132,22 +132,22 @@ Initialisation and Termination
    :param imap: Mapping table, using global indices of type :c:type:`idx_g_t`.
    :param name: A name to be used for output diagnostics.
 
-.. c:function:: void op_partition(char *lib_name, char *lib_routine, op_set prime_set, op_map prime_map, op_dat coords)
+.. c:function:: void op_partition(char *lib_name, char *lib_routine, op_set prime_set, op_map prime_map, op_dat data)
 
    This routine controls the partitioning of the sets used for distributed memory parallel execution.
 
    :param lib_name: The partitioning library to use, see below.
    :param lib_routine: The partitioning algorithm to use.
-   :param prime_set: Specifies the primary set to be partitioned.
-   :param prime_map: Specifies the map to be used to create adjacency lists for the **prime_set**. Required if using :c:expr:`"KWAY"` or :c:expr:`"GEOMKWAY"`.
-   :param coords: Specifies the geometric coordinates of the **prime_set**. Required if using :c:expr:`"GEOM"` or :c:expr:`"GEOMKWAY"`.
+   :param prime_set: Specifies the primary set to be partitioned. Required for :c:expr:`"RANDOM"` and :c:expr:`"EXTERNAL"`, and for :c:expr:`"GEOM"` and :c:expr:`"INERTIAL"` when **data** is NULL.
+   :param prime_map: Specifies the map to be used to create adjacency lists; its target set is the one partitioned. Required for :c:expr:`"KWAY"` and :c:expr:`"GEOMKWAY"`.
+   :param data: For :c:expr:`"GEOM"`, :c:expr:`"GEOMKWAY"` and :c:expr:`"INERTIAL"`, coordinates of the set being partitioned, a :c:expr:`double` or :c:expr:`float` dat; if NULL, the geometry registered for that set with :c:func:`op_set_coords` or :c:func:`op_set_coords_derived` is used. For :c:expr:`"EXTERNAL"`, the partition: an :c:expr:`int` dat on **prime_set** holding each element's rank. Ignored otherwise.
 
    The current options for **lib_name** are:
 
    - :c:expr:`"PTSCOTCH"`: The `PT-Scotch <https://www.labri.fr/perso/pelegrin/scotch/>`_ library.
    - :c:expr:`"PARMETIS"`: The `ParMETIS <http://glaros.dtc.umn.edu/gkhome/metis/parmetis/overview>`_ library.
    - :c:expr:`"KAHIP"`: The `KaHIP <https://kahip.github.io/>`_ library.
-   - :c:expr:`"INERTIAL"`: Internal 3D recursive inertial bisection partitioning.
+   - :c:expr:`"INERTIAL"`: Internal recursive inertial bisection partitioning, in 2D or 3D.
    - :c:expr:`"EXTERNAL"`: External partitioning optionally read in when using HDF5 I/O.
    - :c:expr:`"RANDOM"`: Random partitioning, intended for debugging purposes.
 
@@ -160,6 +160,52 @@ Initialisation and Termination
    - :c:expr:`"KWAY"`: K-way graph partitioning.
    - :c:expr:`"GEOM"`: Geometric graph partitioning.
    - :c:expr:`"GEOMKWAY"`: Geometric followed by k-way graph partitioning.
+
+   A geometric partitioner can take its coordinates from the registered geometry even when the set has none of its own: with cell centroids registered, :c:expr:`op_partition("INERTIAL", NULL, cells, NULL, NULL)` partitions the cells by them. A derived geometry is evaluated on the block layout before partitioning, fetching coordinates held on other ranks.
+
+.. c:function:: void op_set_coords(op_set set, op_dat coords)
+
+   Registers the geometry of **set**, for :c:func:`op_renumber` and the geometric partitioners of :c:func:`op_partition`. Call it before :c:func:`op_partition`.
+
+   :param set: The set the geometry describes.
+   :param coords: Its coordinates, a 2D or 3D :c:expr:`double` dat on **set**.
+
+.. c:function:: void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords)
+
+   Registers the geometry of a set with no coordinates of its own, such as the cells of a cell-centred mesh: each element's position is the mean of **coords** over the elements **to_coords** maps it to. Only this recipe is kept; no dat of positions is created. Call it before :c:func:`op_partition`.
+
+   :param set: The set the geometry describes.
+   :param to_coords: A map from **set** to the set **coords** is defined on.
+   :param coords: Coordinates, a 2D or 3D :c:expr:`double` dat on the target set of **to_coords**.
+
+   .. code-block:: c
+
+      op_set_coords_derived(cells, pcell, p_x);  /* cell centroids from node coordinates */
+      op_set_coords(nodes, p_x);
+
+.. c:function:: void op_set_coords_ptr(op_set set, double *coords)
+.. c:function:: void op_set_coords_derived_ptr(op_set set, int *to_coords, double *coords)
+
+   :c:func:`op_set_coords` and :c:func:`op_set_coords_derived` for the pointer API: the map and the coordinates are named by the arrays they were declared from (with ``op_decl_map`` or ``op_decl_map_long``, and ``op_decl_dat``). An array no map or dat was declared from stops the job.
+
+.. c:function:: void op_renumber(op_map base)
+
+   Reorders each rank's core elements for locality, after :c:func:`op_partition`: first the target set of **base**, with the ordering the ``OP_REORDER`` environment variable names, then every set the maps reach from it, as ``OP_REORDER_PROPAGATE`` says. Unset, they default to a Hilbert curve propagated by centroids if the target set's geometry is registered with :c:func:`op_set_coords` or :c:func:`op_set_coords_derived`, and to reverse Cuthill-McKee propagated lexicographically if not. Call it before any loop. In a single-node library it warns and reorders nothing.
+
+   :param base: A map onto the set to reorder first. For :c:expr:`"rcm"` and :c:expr:`"sloan"`, two elements of that set are adjacent when one element of the map's source set maps to both (or, for a map from the set to itself, when it maps one to the other).
+
+   ``OP_REORDER`` takes:
+
+   - :c:expr:`"none"`: no reordering.
+   - :c:expr:`"rcm"`: reverse Cuthill-McKee (the default without geometry).
+   - :c:expr:`"sloan"`: Sloan's profile-reducing ordering.
+   - :c:expr:`"hilbert"`: a Hilbert space-filling curve through the set's geometry (the default with it). Without geometry it warns and uses reverse Cuthill-McKee. If on any rank the curve gives more than 1% of a set's elements the key of an element at another position - the mesh is finer there than the curve resolves - a warning names the set and the rank.
+   - :c:expr:`"random"`: a random permutation, as a baseline.
+
+   ``OP_REORDER_PROPAGATE`` takes:
+
+   - :c:expr:`"lex"`: each set sorted by the new indices of all its map entries (the default without geometry).
+   - :c:expr:`"centroid"`: each set along a Hilbert curve through centroids carried over from the sets already ordered (the default when the first set has geometry). Without that geometry it warns and uses lex.
 
 .. c:function:: void op_decl_const(int dim, char *type, T *dat)
 
@@ -524,6 +570,8 @@ The following environment variables can be set at run time to control OP2 behavi
      - Description
    * - ``OP_AUTO_SOA``
      - Any value.  For the translator, the same as ``--force_soa``: every dataset is translated as SoA.  At run time (or as an ``op_init`` argument), the GPU backends store every dataset of dimension above 1 as SoA, as ``op_init_soa`` does.
+   * - ``OP_GPU_DIRECT``
+     - ``on`` or ``off``: hands device buffers to MPI, or stages them through host memory, overriding the detection at ``op_init`` (see :ref:`perf`).
    * - ``OP_HYBRID_BALANCE``
      - GPU-to-CPU partition size ratio for hybrid CPU/GPU runs (also an ``op_init`` argument).
    * - ``OP_WHITELIST``
@@ -659,9 +707,29 @@ Mesh Partitioning
 
 .. code-block:: fortran
 
-   call op_partition("PARMETIS", "KWAY", prime_set, prime_map, coords_dat)
+   call op_partition("PARMETIS", "KWAY", prime_set, prime_map, data)
 
-The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`.
+The arguments and valid ``lib_name`` / ``lib_routine`` options are identical to the C/C++ :c:func:`op_partition`. An ``op_dat`` that was never declared passes NULL.
+
+Mesh Geometry and Renumbering
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: fortran
+
+   call op_set_coords_derived(cells, pcell, p_x)   ! cell centroids from node coordinates
+   call op_set_coords(nodes, p_x)
+   call op_partition("PTSCOTCH", "KWAY", edges, pecell, p_x)
+   call op_renumber(pecell)
+
+As :c:func:`op_set_coords`, :c:func:`op_set_coords_derived` and :c:func:`op_renumber` in C/C++.
+
+For the pointer API, the map and the coordinates are the arrays they were declared from. The coordinates are ``real(8)`` with 2 or 3 components per element, as their ``op_dat`` was declared - ``x(2, n)`` or ``x(3, n)``. A map declared with ``op_decl_map`` from ``integer(4)`` goes to ``op_set_coords_derived_ptr``, one declared with ``op_decl_map_long`` from ``integer(8)`` to ``op_set_coords_derived_ptr_long``:
+
+.. code-block:: fortran
+
+   call op_set_coords_ptr(nodes, x)
+   call op_set_coords_derived_ptr(cells, cell2node, x)        ! integer(4) cell2node
+   call op_set_coords_derived_ptr_long(cells, cell2node, x)   ! integer(8) cell2node
 
 Utility Functions
 ^^^^^^^^^^^^^^^^^
