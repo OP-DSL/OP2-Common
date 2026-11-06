@@ -69,6 +69,7 @@ clean:
 
 # Base set of objects shared across multiple libraries
 OP2_BASE := $(addprefix $(OBJ)/core/,\
+	op_env.o \
 	op_lib_core.o \
 	op_rt_support.o \
 	SafeLong.o)

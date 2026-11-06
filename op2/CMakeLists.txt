@@ -47,6 +47,7 @@ _op2_preprocess_fortran(
 # Core sources for every library with a backend; op_profile is here because
 # all of them profile.
 set(_op2_core_srcs
+    "${_src}/core/op_env.cpp"
     "${_src}/core/op_lib_core.cpp"
     "${_src}/core/op_rt_support.cpp"
     "${_src}/core/SafeLong.cpp"
@@ -588,6 +589,8 @@ foreach(_t IN LISTS _op2_targets_for)
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2/fortran/${_t}")
 endforeach()
 
+# include/op2 mirrors op2/include, so one include directory serves the flat
+# headers (<op_seq.h>) and the op2/ tree (<op2/env.h>) alike.
 install(DIRECTORY "${_inc}/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
     FILES_MATCHING
