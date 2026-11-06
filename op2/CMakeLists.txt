@@ -68,6 +68,17 @@ set(_op2_rt_srcs
     "${_src}/rt/plan/op_plan_staging.cpp"
 )
 
+# The OpenMP backend's runtime (src/rt/cpu): its executor, strategies and
+# chunk plans.  Built without OpenMP: the regions are the generated code's
+# (op2/rt/kernel/cpu/range.h, op2/rt/kernel/cpu/chunk.h).
+set(_op2_rt_cpu_srcs
+    "${_src}/rt/cpu/op_cpu_init.cpp"
+    "${_src}/rt/cpu/op_cpu_executor.cpp"
+    "${_src}/rt/cpu/op_cpu_strategy.cpp"
+    "${_src}/rt/cpu/op_cpu_chunk_plan.cpp"
+)
+
+
 # Core sources for every library with a backend; op_profile is here because
 # all of them profile.
 set(_op2_core_srcs
@@ -88,6 +99,7 @@ set(_op2_backend_seq_srcs
 set(_op2_backend_openmp_srcs
     "${_src}/core/op_dummy_singlenode.cpp"
     "${_src}/openmp/op_openmp_decl.cpp"
+    ${_op2_rt_cpu_srcs}
 )
 
 # Single-node CUDA backend, shared verbatim by CUDA and HIP (HIP promotes the
@@ -122,6 +134,7 @@ set(_op2_backend_mpi_backbone_srcs
 set(_op2_backend_mpi_cpu_overlay_srcs
     "${_src}/mpi/op_mpi_decl.cpp"
     "${_src}/mpi/op_mpi_rt_support.cpp"
+    ${_op2_rt_cpu_srcs}
 )
 
 set(_op2_backend_mpi_cuda_overlay_srcs
