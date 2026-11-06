@@ -505,7 +505,7 @@ MATLAB scripts in `apps/mesh_generators/`:
 | Dependency | Minimum Version | Notes |
 |---|---|---|
 | GNU Make | ≥ 4.2 | The build system |
-| C/C++ compiler | C++17 support | GCC, Clang, Intel oneAPI, Cray, IBM XL, NVHPC |
+| C/C++ compiler | C++20 support | GCC, Clang, Intel oneAPI, Cray, IBM XL, NVHPC |
 
 ### Optional
 

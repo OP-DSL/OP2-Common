@@ -8,7 +8,7 @@ Toolchain and Build Dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - **GNU Make** > 4.2
-- **C/C++17 compiler** (GCC, Clang, Cray, Intel, IBM XL, NVHPC).
+- **C/C++20 compiler** (GCC, Clang, Cray, Intel, IBM XL, NVHPC).
 - Optional: **Fortran compiler** (GFortran, Cray, Intel, IBM XL, NVHPC).
 - Optional: **MPI implementation** supporting ``mpicc``, ``mpicxx``, and ``mpif90`` compiler wrappers.
 - Optional: **NVIDIA CUDA** >= 11.8
