@@ -44,6 +44,30 @@ _op2_preprocess_fortran(
 
 # --- C/C++ groups --------------------------------------------------------
 
+# The loop runtime (src/rt), backend neutral: its start, reports and release,
+# a call's model and the strategy ladder, the JIT's policy, parameters and
+# build cache, the tuner, their reports, and the planning
+# building blocks the backends' strategies compose.
+set(_op2_rt_srcs
+    "${_src}/rt/op_rt_lifecycle.cpp"
+    "${_src}/rt/op_rt_report.cpp"
+    "${_src}/rt/loop/op_loop.cpp"
+    "${_src}/rt/loop/op_loop_call.cpp"
+    "${_src}/rt/loop/op_loop_family.cpp"
+    "${_src}/rt/loop/op_loop_ladder.cpp"
+    "${_src}/rt/loop/op_loop_report.cpp"
+    "${_src}/rt/jit/op_jit_options.cpp"
+    "${_src}/rt/jit/op_jit_params.cpp"
+    "${_src}/rt/jit/op_jit_pool.cpp"
+    "${_src}/rt/jit/op_jit_report.cpp"
+    "${_src}/rt/tune/op_tune_options.cpp"
+    "${_src}/rt/tune/op_tune_autotune.cpp"
+    "${_src}/rt/tune/op_tune_report.cpp"
+    "${_src}/rt/plan/op_plan_colouring.cpp"
+    "${_src}/rt/plan/op_plan_chunks.cpp"
+    "${_src}/rt/plan/op_plan_staging.cpp"
+)
+
 # Core sources for every library with a backend; op_profile is here because
 # all of them profile.
 set(_op2_core_srcs
@@ -52,6 +76,7 @@ set(_op2_core_srcs
     "${_src}/core/op_rt_support.cpp"
     "${_src}/core/SafeLong.cpp"
     "${_src}/externlib/op_profile.cpp"
+    ${_op2_rt_srcs}
 )
 
 # Backend-specific groups for single-node variants.

@@ -38,6 +38,7 @@
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
+#include <op2/rt/lifecycle.h>
 #include <op2/env.h>
 #include <op_lib_core.h>
 #include <op_rt_support.h>
@@ -268,6 +269,13 @@ void op_timers(double *cpu, double *et) {
 }
 
 void op_exit() {
+  {
+    int rank = 0, ranks = 1;
+    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+    MPI_Comm_size(OP_MPI_WORLD, &ranks);
+    op::rt::finalise(rank, ranks);
+  }
+
   op_mpi_exit();
 
   // free the device halo lists once the last exchange is done with them, while

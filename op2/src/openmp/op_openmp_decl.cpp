@@ -35,6 +35,7 @@
  * of the OpenMP back-end
  */
 
+#include <op2/rt/lifecycle.h>
 #include <op2/env.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
@@ -179,6 +180,7 @@ void op_printf(const char *format, ...) {
 void op_print(const char *line) { printf("%s\n", line); }
 
 void op_exit() {
+  op::rt::finalise(0, 1);
   op_rt_exit();
   op_exit_core();
 }
