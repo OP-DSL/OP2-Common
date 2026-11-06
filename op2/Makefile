@@ -158,6 +158,10 @@ OP2_FOR_HIP := $(OP2_HIP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
 OP2_OPENMP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	core/op_dummy_singlenode.o \
 	openmp/op_openmp_decl.o \
+	rt/cpu/op_cpu_init.o \
+	rt/cpu/op_cpu_executor.o \
+	rt/cpu/op_cpu_strategy.o \
+	rt/cpu/op_cpu_chunk_plan.o \
 	externlib/op_profile.o)
 
 OP2_FOR_OPENMP := $(OP2_OPENMP) $(OP2_FOR_BASE) $(addprefix $(OBJ)/fortran/,\
@@ -168,6 +172,10 @@ OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_part_core.o \
 	mpi/op_mpi_decl.o \
 	mpi/op_mpi_rt_support.o \
+	rt/cpu/op_cpu_init.o \
+	rt/cpu/op_cpu_executor.o \
+	rt/cpu/op_cpu_strategy.o \
+	rt/cpu/op_cpu_chunk_plan.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
 	mpi/op_mpi_unified_exchanges.o \
