@@ -217,7 +217,7 @@ In either case, the initial distribution serves only as an input convention; OP2
 Runtime arguments
 ~~~~~~~~~~~~~~~~~
 
-Several runtime behaviours are controlled by arguments passed to ``op_init`` (parsed by ``op_set_args``), or by the equivalent environment variables:
+Several runtime behaviours are controlled by arguments passed to ``op_init`` (parsed by ``op_set_args``); the environment variables ``op_init`` reads are listed in :doc:`api`:
 
 .. list-table::
    :header-rows: 1
@@ -238,11 +238,11 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
    * - ``-gpudirect``
      - Enable NVIDIA GPUDirect for direct GPU-to-GPU MPI transfers.
    * - ``OP_AUTO_SOA``
-     - Automatically convert all dataset storage to SoA layout on the device.
+     - Store every dataset of dimension above 1 as SoA on the device (also an environment variable).
    * - ``OP_PARTIAL_EXCHANGE``
      - Enable partial MPI halo exchange (per-mapping halos instead of full set halos).
    * - ``OP_HYBRID_BALANCE=<f>``
-     - GPU-to-CPU partition size ratio for hybrid CPU/GPU runs.  Can also be set via the ``OP_HYBRID_BALANCE`` environment variable.
+     - GPU-to-CPU partition size ratio for hybrid CPU/GPU runs (also an environment variable).
    * - ``OP_MAPS_BASE_INDEX=<0|1>``
      - Mapping table base index: 0 (C/C++ default) or 1 (Fortran-style).
    * - ``OP_CUDA_REDUCTIONS_MIB=<n>``
