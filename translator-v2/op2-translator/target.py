@@ -30,14 +30,14 @@ class Seq(Target):
     kernel_translation = False
 
     def defaultConfig(self) -> Dict[str, Any]:
-        return {"grouped": False, "device": 1}
+        return {"device": 1}
 
 class CSeq(Target):
     name = "c_seq"
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
-        return {"grouped": False, "device": 1}
+        return {"device": 1}
 
 
 class Cuda(Target):
@@ -45,14 +45,14 @@ class Cuda(Target):
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
-        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+        return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
 
 class Hip(Target):
     name = "hip"
     kernel_translation = True
 
     def defaultConfig(self) -> Dict[str, Any]:
-        return {"grouped": True, "device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
+        return {"device": 2, "atomics": True, "color2": False, "gbl_inc_atomic": False}
 
 class CCuda(Target):
     name = "c_cuda"
@@ -60,7 +60,6 @@ class CCuda(Target):
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {
-            "grouped": True,
             "device": 2,
             "atomics": True,
             "color2": False,
@@ -86,7 +85,6 @@ class OpenMP(Target):
 
     def defaultConfig(self) -> Dict[str, Any]:
         return {
-            "grouped": False,
             "vectorise": {"enable": True, "simd_len": 8, "blacklist": []},
             "device": 1,
             "thread_timing": False,

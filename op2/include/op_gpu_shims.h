@@ -54,6 +54,7 @@
 #define gpuEventCreateWithFlags cudaEventCreateWithFlags
 #define gpuEventRecord cudaEventRecord
 #define gpuEventSynchronize cudaEventSynchronize
+#define gpuEventDestroy cudaEventDestroy
 #define gpuStreamWaitEvent cudaStreamWaitEvent
 
 #define gpuMemcpyToSymbol cudaMemcpyToSymbol
@@ -146,6 +147,7 @@
 #define gpuEventCreateWithFlags hipEventCreateWithFlags
 #define gpuEventRecord hipEventRecord
 #define gpuEventSynchronize hipEventSynchronize
+#define gpuEventDestroy hipEventDestroy
 #define gpuStreamWaitEvent hipStreamWaitEvent
 
 #define gpuMemcpyToSymbol hipMemcpyToSymbol

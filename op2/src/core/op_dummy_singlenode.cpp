@@ -40,13 +40,7 @@
 extern "C" {
 #endif
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-  return set->size;
-}
-
-int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device){
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device) {
   (void)nargs;
   (void)args;
   (void)device;
@@ -63,39 +57,12 @@ void op_mpi_wait_all(int nargs, op_arg *args) {
   (void)args;
 }
 
-void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device) {
-  (void)nargs;
-  (void)args;
-  (void)device;
-}
-
 void op_mpi_test_all(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
 
-void op_mpi_test_all_grouped(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-  return set->size;
-}
-
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-void op_mpi_wait_all_cuda(int nargs, op_arg *args) {
-  (void)nargs;
-  (void)args;
-}
-
-void op_mpi_reset_halos(int nargs, op_arg *args) {
   (void)nargs;
   (void)args;
 }
@@ -106,19 +73,6 @@ void *op_mpi_perf_time(const char *name, double time) {
   (void)name;
   (void)time;
   return (void *)name;
-}
-
-#ifdef COMM_PERF
-void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args) {
-  (void)k_i;
-  (void)nargs;
-  (void)args;
-}
-#endif
-
-void op_mpi_reduce_combined(op_arg *args, int nargs) {
-  (void)args;
-  (void)nargs;
 }
 
 void op_mpi_reduce_float(op_arg *args, float *data) {
@@ -142,12 +96,12 @@ void op_mpi_reduce_bool(op_arg *args, bool *data) {
 }
 
 void op_partition(const char *lib_name, const char *lib_routine,
-                  op_set prime_set, op_map prime_map, op_dat coords) {
+                  op_set prime_set, op_map prime_map, op_dat data) {
   (void)lib_name;
   (void)lib_routine;
   (void)prime_set;
   (void)prime_map;
-  (void)coords;
+  (void)data;
   OP_is_partitioned = 1;
 }
 

@@ -47,24 +47,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <algorithm>
-
 #include <op_lib_core.h>
 #include <op_util.h>
-
-/*******************************************************************************
-* compute local size from global size
-*******************************************************************************/
-
-int compute_local_size(int global_size, int mpi_comm_size, int mpi_rank) {
-  int local_size = global_size / mpi_comm_size;
-  int remainder = (int)fmod(global_size, mpi_comm_size);
-
-  if (mpi_rank < remainder) {
-    local_size = local_size + 1;
-  }
-  return local_size;
-}
 
 /*******************************************************************************
 * Wrapper for malloc from www.gnu.org/
@@ -127,21 +111,6 @@ int min(int array[], int size) {
 }
 
 /*******************************************************************************
-* Binary search an array for a given value
-*******************************************************************************/
-
-template <typename T, typename U>
-idx_l_t binary_search(T a[], U value, int low, int high) {
-  auto lb = std::lower_bound(a + low, a + high + 1, value);
-  if (lb == a + high + 1 || *lb != value) return -1;
-  return (int) (lb - a);
-}
-
-template idx_l_t binary_search<idx_g_t, idx_g_t>(idx_g_t a[], idx_g_t value, int low, int high);
-template idx_l_t binary_search<idx_g_t, idx_l_t>(idx_g_t a[], idx_l_t value, int low, int high);
-template idx_l_t binary_search<idx_l_t, idx_l_t>(idx_l_t a[], idx_l_t value, int low, int high);
-
-/*******************************************************************************
 * Linear search an array for a given value
 *******************************************************************************/
 
@@ -151,83 +120,6 @@ int linear_search(int a[], int value, int low, int high) {
       return i;
   }
   return -1;
-}
-
-/*******************************************************************************
-* Quick sort arr1 and organise arr2 elements according to the sorted arr1 order
-*******************************************************************************/
-
-void op_sort_2(int *__restrict xs, int *__restrict ys, int n) {
-  std::sort(ZipIter(xs, ys), ZipIter(xs + n, ys + n));
-}
-
-/*******************************************************************************
-* Quick sort arr and organise dat[] elements according to the sorted arr order
-*******************************************************************************/
-
-void op_sort_dat(idx_g_t *__restrict arr, char *__restrict dat, int n, int elem_size2) {
-  size_t elem_size = elem_size2;
-  idx_g_t *indicies = (idx_g_t *) xmalloc(n * sizeof(idx_g_t));
-
-  for (idx_g_t i = 0; i < n; ++i)
-    indicies[i] = i;
-
-  std::sort(ZipIter(arr, indicies), ZipIter(arr + n, indicies + n));
- 
-  char *tmp_dat = (char *) xmalloc(n * elem_size * sizeof(char));
-  for (idx_g_t i = 0; i < n; ++i)
-    std::copy(dat + indicies[i] * elem_size, dat + (indicies[i] + 1) * elem_size, tmp_dat + i * elem_size);
-
-  std::copy(tmp_dat, tmp_dat + n * elem_size, dat);
-
-  op_free(tmp_dat);
-  op_free(indicies);
-
-  return;
-}
-
-/*******************************************************************************
-* Quick sort arr and organise map[] elements according to the sorted arr order
-*******************************************************************************/
-
-void op_sort_map(idx_g_t *__restrict arr, idx_g_t *__restrict map, int n, int dim) {
-  op_sort_dat(arr, (char *) map, n, dim * sizeof(idx_g_t));
-}
-
-/*******************************************************************************
-* Get the permutation of the array
-*******************************************************************************/
-
-void op_sort_get_permutation(idx_g_t *__restrict arr, int n) {
-  idx_g_t *indicies = (idx_g_t *) xmalloc(n * sizeof(idx_g_t));
-
-  for (idx_g_t i = 0; i < n; ++i)
-    indicies[i] = i;
-
-  std::sort(ZipIter(arr, indicies), ZipIter(arr + n, indicies + n));
-
-  std::copy(indicies, indicies + n, arr);
-
-  op_free(indicies);
-
-  return;
-}
-
-/*******************************************************************************
-* Reorder the data according to the permutation
-*******************************************************************************/
-
-void op_reorder_data(idx_g_t *__restrict permutation, char *__restrict dat, int n, int elem_size) {
-  char *tmp_dat = (char *) xmalloc(n * elem_size * sizeof(char));
-
-  for (idx_g_t i = 0; i < n; ++i)
-    std::copy(dat + permutation[i] * elem_size, dat + (permutation[i] + 1) * elem_size, tmp_dat + i * elem_size);
-
-  std::copy(tmp_dat, tmp_dat + n * elem_size, dat);
-
-  op_free(tmp_dat);
-
-  return;
 }
 
 /*******************************************************************************
