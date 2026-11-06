@@ -3,15 +3,13 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
 import fparser.two.Fortran2003 as f2003
-import fparser.two.Fortran2008 as f2008
 import fparser.two.utils as fpu
 
 import fortran.util as fu
 import op as OP
-from language import Lang
-from op import OpError
-from store import Application, Entity, Function, Program
-from util import find, safeFind
+from diagnostics import OpError
+from store import Application, Entity, Program
+from util import safeFind
 
 
 def indent(src: str, width: int = 4) -> str:
@@ -73,35 +71,11 @@ class FArray(FType):
 
 
 @dataclass(frozen=True)
-class FInteger(FPrimitive):
-    kind: int
+class FScalar(FPrimitive):
+    typ: OP.Type
 
     def asC(self) -> str:
-        if self.kind == 4:
-            return "int"
-        elif self.kind == 8:
-            return "int64_t"
-        else:
-            raise OpError(f"FInteger unknown kind: {self.kind}")
-
-
-@dataclass(frozen=True)
-class FReal(FPrimitive):
-    kind: int
-
-    def asC(self) -> str:
-        if self.kind == 4:
-            return "float"
-        elif self.kind == 8:
-            return "double"
-        else:
-            raise OpError(f"FReal unknown kind: {self.kind}")
-
-
-@dataclass(frozen=True)
-class FLogical(FPrimitive):
-    def asC(self) -> str:
-        return "bool"
+        return self.typ.c()
 
 
 @dataclass(frozen=True)
@@ -131,14 +105,13 @@ class Param:
 class SubprogramInfo:
     name: str
     ast: f2003.Base
+    # The program it was parsed from, which places its statements.
+    program: Optional[Program] = None
 
     params: List[Param] = field(default_factory=list)
     func_return_var: Optional[str] = None
 
     types: Dict[str, FType] = field(default_factory=dict)
-
-    def isSubroutine(self) -> bool:
-        return not self.is_function()
 
     def isFunction(self) -> bool:
         return self.func_return_var is not None
@@ -161,7 +134,6 @@ class Info:
 
     consts: Dict[str, FType] = field(default_factory=dict)
 
-    entry_subprogram: Optional[str] = None
     subprograms: Dict[str, SubprogramInfo] = field(default_factory=dict)
 
     def functionNames(self) -> List[str]:
@@ -173,29 +145,27 @@ class Context:
     info: Info
     sub_info: SubprogramInfo
 
-    def isEntry(self) -> bool:
-        return self.sub_info.name == self.info.entry_subprogram
-
     def lookupType(self, name: str) -> Optional[FType]:
         return self.sub_info.types.get(name) or self.info.consts.get(name)
 
+    # Stop translating: the construct at node is not modelled.
     def error(self, msg: str, node: Optional[Any] = None):
-        full_msg = f"Error translating {self.sub_info.name}: {msg}"
+        item = fu.getItem(node) if node is not None else None
+        loc = None
+        if item is not None and self.sub_info.program is not None:
+            loc = self.sub_info.program.locate(item.span[0])
 
-        item = None
-        if node is not None:
-            item = fu.getItem(node)
-
+        text = f"{self.sub_info.name}: {msg}"
         if item is not None:
-            full_msg += f"\n  > {item.line}"
+            text += f"\n    {item.line.strip()}"
 
-        raise OpError(full_msg)
+        loop = self.info.loop
+        raise OpError(text, loc, (loop.loc, f"in the op_par_loop of {loop.kernel}"))
 
 
 def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: Dict[str, Any], const_rename: Optional[Callable[[str], str]] = None) -> Info:
     info = Info(loop, config)
 
-    is_first = True
     for entity in entities:
         sub_info = None
 
@@ -208,16 +178,12 @@ def parseInfo(entities: List[Entity], app: Application, loop: OP.Loop, config: D
 
         info.subprograms[sub_info.name] = sub_info
 
-        if is_first:
-            info.entry_subprogram = sub_info.name
-            is_first = False
-
     if app.consts_module is not None:
         consts = parseConstsModule(app.consts_module, info)
 
         for name, type_ in consts.items():
             if isinstance(type_, FCharacter) or (isinstance(type_, FArray) and isinstance(type_.inner, FCharacter)):
-                loop.consts.discard(name)
+                loop.consts.pop(name, None)
 
         for name, type_ in consts.items():
             actual_name = name
@@ -244,7 +210,7 @@ def parseConstsModule(program: Program, info: Info) -> Dict[str, FType]:
     if module is None:
         raise OpError("Invalid consts module")
 
-    consts_info = SubprogramInfo("consts", None)
+    consts_info = SubprogramInfo("consts", None, program)
 
     spec_part = fpu.get_child(module, f2003.Specification_Part)
     return parseTypes(spec_part, Context(info, consts_info))
@@ -255,7 +221,7 @@ def parseSubroutineInfo(entity: Entity) -> SubprogramInfo:
     spec_part = fpu.get_child(entity.ast, f2003.Specification_Part)
 
     name = translateName(fpu.get_child(subroutine_stmt, f2003.Name))
-    sub_info = SubprogramInfo(name, entity.ast)
+    sub_info = SubprogramInfo(name, entity.ast, entity.program)
 
     param_names = fpu.walk(fpu.get_child(subroutine_stmt, f2003.Dummy_Arg_List), f2003.Name)
     sub_info.params = [Param(translateName(name)) for name in param_names]
@@ -268,7 +234,7 @@ def parseFunctionInfo(entity: Entity) -> SubprogramInfo:
     spec_part = fpu.get_child(entity.ast, f2003.Specification_Part)
 
     name = translateName(fpu.get_child(function_stmt, f2003.Name))
-    sub_info = SubprogramInfo(name, entity.ast)
+    sub_info = SubprogramInfo(name, entity.ast, entity.program)
 
     param_list = fpu.get_child(function_stmt, f2003.Dummy_Arg_List)
     if param_list is not None:
@@ -278,7 +244,7 @@ def parseFunctionInfo(entity: Entity) -> SubprogramInfo:
 
     suffix = fpu.get_child(function_stmt, f2003.Suffix)
     if suffix is not None:
-        result_name = fpu.get_child(suffix, f2003.Result_Name)
+        result_name = fpu.get_child(suffix, f2003.Name)
         if result_name is not None:
             sub_info.func_return_var = f"_{translateName(result_name)}"
 
@@ -293,9 +259,6 @@ def parseSubroutineTypeInfo(ctx: Context) -> None:
 def parseFunctionTypeInfo(ctx: Context) -> None:
     spec_part = fpu.get_child(ctx.sub_info.ast, f2003.Specification_Part)
     ctx.sub_info.types = parseTypes(spec_part, ctx)
-
-    if ctx.sub_info.func_return_var[1:] in ctx.sub_info.types:
-        ctx.sub_info.types[ctx.sub_info.func_return_var] = ctx.sub_info.pop(ctx.sub_info.func_return_var[1:])
 
     function_stmt = fpu.get_child(ctx.sub_info.ast, f2003.Function_Stmt)
     prefix = fpu.get_child(function_stmt, f2003.Prefix)
@@ -318,7 +281,7 @@ def parseFunctionTypeInfo(ctx: Context) -> None:
         ctx.error("Could not resolve function type")
 
     if not isinstance(ctx.sub_info.types[ctx.sub_info.func_return_var], FPrimitive):
-        ctx.error(f"Non-primitive function return: {func_type}")
+        ctx.error(f"Non-primitive function return: {ctx.sub_info.functionType()}")
 
 
 def parseTypes(spec_part: f2003.Specification_Part, ctx: Context) -> Dict[str, FType]:
@@ -336,7 +299,7 @@ def parseTypes(spec_part: f2003.Specification_Part, ctx: Context) -> Dict[str, F
             for attr_spec in attr_spec_list.items:
                 if isinstance(attr_spec, f2003.Dimension_Attr_Spec):
                     dimension_attr_spec = attr_spec
-                elif attr_spec.string == "PARAMETER" or isinstance(attr_spec, f2003.Intent_Attr_Spec):
+                elif attr_spec.string in ("PARAMETER", "TARGET") or isinstance(attr_spec, f2003.Intent_Attr_Spec):
                     continue
                 elif isinstance(attr_spec, f2003.Language_Binding_Spec):
                     continue
@@ -369,35 +332,17 @@ def parseIntrinsicType(intrinsic_type_spec: f2003.Intrinsic_Type_Spec, ctx: Cont
     type_name = intrinsic_type_spec.items[0]
 
     kind = None
-    if intrinsic_type_spec.items[1] is not None:
-        ks = intrinsic_type_spec.items[1]
+    if isinstance(intrinsic_type_spec.items[1], f2003.Kind_Selector):
+        kind = intrinsic_type_spec.items[1].items[1]
 
-        if isinstance(ks, f2003.Kind_Selector):
-            val = ks.items[1]
+    if type_name == "DOUBLE PRECISION":
+        type_name, kind = "REAL", 8
 
-            if isinstance(val, f2003.Int_Literal_Constant):
-                kind = val.items[0]
+    intrinsic = fu.intrinsicType(type_name, kind)
+    if intrinsic is not None:
+        return FScalar(intrinsic)
 
-            elif isinstance(val, f2003.Name):
-                kind = val.string.upper()
-
-    if type_name == "INTEGER":
-        if kind in [None, "4", "IK", "IK4"]:
-            return FInteger(4)
-        elif kind in ["8", "IK8"]:
-            return FInteger(8)
-
-    elif type_name == "REAL":
-        if kind in [None, "4", "RK4"]:
-            return FReal(4)
-        elif kind in ["8", "RK", "RK8"]:
-            return FReal(8)
-
-    elif type_name ==  "LOGICAL":
-        if kind in [None, "LK"]:
-            return FLogical()
-
-    elif type_name == "CHARACTER":
+    if type_name == "CHARACTER":
         if isinstance(intrinsic_type_spec.items[1], f2003.Char_Selector):
             char_selector = intrinsic_type_spec.items[1]
             return FCharacter(translateGeneric(char_selector.items[0], ctx))
@@ -407,6 +352,9 @@ def parseIntrinsicType(intrinsic_type_spec: f2003.Intrinsic_Type_Spec, ctx: Cont
         else:
             ctx.error(f"Unknown character type spec", intrinsic_type_spec)
 
+    if kind is not None and fu.kindValue(kind) is None:
+        ctx.error(f"unknown kind {kind}: name its number with --kind {kind}=<number>",
+                  intrinsic_type_spec)
     ctx.error(f"Unable to parse intrinsic type", intrinsic_type_spec)
 
 
@@ -444,14 +392,26 @@ def resolveParamAccesses(info: Info) -> None:
     for sub_info in info.subprograms.values():
         resolveParamAccessesLocal(Context(info, sub_info))
 
-    has_unresolved = True
+    params = [param for sub_info in info.subprograms.values() for param in sub_info.params]
 
-    while has_unresolved:
-        has_unresolved = False
+    # A param passed to a non-const one is non-const, a call further up the chain
+    # each pass; the rest, recursion included, are const.  atomicAdd only reads
+    # its value; a target is non-const already.
+    changed = True
+    while changed:
+        changed = False
+        for param in params:
+            if param.is_const is None and any(
+                info.subprograms[name].params[idx].is_const is False
+                for name, idx in param.as_arg
+                if name != "atomicAdd"
+            ):
+                param.is_const = False
+                changed = True
 
-        for sub_info in info.subprograms.values():
-            unresolved = tryResolveParams(Context(info, sub_info))
-            has_unresolved = has_unresolved or unresolved
+    for param in params:
+        if param.is_const is None:
+            param.is_const = True
 
 
 def resolveParamAccessesLocal(ctx: Context) -> None:
@@ -500,37 +460,6 @@ def resolveParamAccessesLocal(ctx: Context) -> None:
 
         if param.is_const == None and ("atomicAdd", 0) in param.as_arg:
             param.is_const = False
-
-
-def tryResolveParams(ctx: Context) -> bool:
-    has_unresolved = False
-
-    for param in ctx.sub_info.params:
-        if param.is_const is not None:
-            continue
-
-        all_const = True
-        unresolved = False
-
-        for target_name, idx in param.as_arg:
-            target_sub = ctx.info.subprograms[target_name]
-
-            if target_sub.params[idx].is_const is None:
-                unresolved = True
-                continue
-
-            if target_sub.params[idx].is_const == False:
-                all_const = False
-                break
-
-        if not all_const:
-            param.is_const = False
-        elif all_const and not unresolved:
-            param.is_const = True
-        else:
-            has_unresolved = True
-
-    return has_unresolved
 
 
 def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
@@ -628,8 +557,6 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
     init_src = ""
     parameters = {}
 
-    has_implicit_none = False
-
     for node in spec_part.content:
         if isinstance(node, f2003.Use_Stmt):
             continue
@@ -637,7 +564,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
         if isinstance(node, f2003.Implicit_Part):
             for implicit_node in node.children:
                 if isinstance(implicit_node, f2003.Implicit_Stmt) and implicit_node.items[0] == "NONE":
-                    has_implicit_none = True
+                    continue
                 elif isinstance(implicit_node, f2003.Parameter_Stmt):
                     def_list = implicit_node.items[1]
 
@@ -655,12 +582,21 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             attr_spec_list = node.items[1]
 
             is_parameter = False
+            is_save = False
             if attr_spec_list is not None:
                 for attr_spec in attr_spec_list.items:
                     if attr_spec.string == "PARAMETER":
                         is_parameter = True
+                    elif attr_spec.string == "SAVE":
+                        is_save = True
 
             if not is_parameter:
+                # A C++ local starts afresh on every call, which a SAVE local, or an
+                # initialised one (implied SAVE), does not.
+                for entity_decl in node.items[2].items:
+                    if is_save or entity_decl.items[3] is not None:
+                        name = translateGeneric(entity_decl.items[0], ctx)
+                        ctx.error(f"SAVE local {name} is unsupported (an initialiser implies SAVE)", entity_decl)
                 continue
 
             for entity_decl in node.items[2].items:
@@ -682,10 +618,11 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             init_src += translateDataStmt(node, ctx)
             continue
 
-        ctx.error(f"Unsupported specification statement", node)
+        # C++ lets references alias anyway.
+        if isinstance(node, f2003.Target_Stmt):
+            continue
 
-    # if not has_implicit_none:
-    #     ctx.error(f"No implicit none", spec_part)
+        ctx.error(f"Unsupported specification statement", node)
 
     src = ""
     for name, type_ in ctx.sub_info.types.items():
@@ -702,7 +639,8 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             continue
 
         if name in parameters:
-            assert(not isinstance(type_, FArray))
+            if isinstance(type_, FArray):
+                ctx.error(f"PARAMETER array {name} is unsupported")
             src += f"constexpr {type_.asLocal(name)} = {parameters[name]};\n"
         elif isinstance(type_, FPrimitive):
             src += f"{type_.asLocal(name)};\n"
@@ -817,7 +755,11 @@ def translateBlockNonlabelDoConstruct(block_nonlabel_do_construct: f2003.Block_N
                 src += f"for ({control_var} = {lb}; {control_var} <= {ub}; ++{control_var})" + " {\n"
             else:
                 step = translateGeneric(bounds[2], ctx)
-                src += f"for ({control_var} = {lb}; {control_var} <= {ub}; {control_var} += {step})" + " {\n"
+
+                # Until the variable passes ub in the step's direction; the compiler
+                # folds the test for a constant step.
+                cond = f"(({step}) > 0 ? {control_var} <= {ub} : {control_var} >= {ub})"
+                src += f"for ({control_var} = {lb}; {cond}; {control_var} += {step})" + " {\n"
 
         elif isinstance(child, f2003.End_Do_Stmt):
             src += "}\n"
@@ -1044,8 +986,8 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
 def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intrinsic_Function_Reference, ctx: Context) -> str:
     intrinsic_funcs = {
         "abs":   "f2c::abs",
+        "aint":  "f2c::aint",
         "dble":  "f2c::dble",
-        "int":   "f2c::int_",
         "min":   "f2c::min",
         "max":   "f2c::max",
         "mod":   "f2c::mod",
@@ -1074,7 +1016,7 @@ def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intr
         "dcos":  "f2c::cos",
         "dcosh": "f2c::cosh",
         "dexp":  "f2c::exp",
-        "dint":  "f2c::int",
+        "dint":  "f2c::aint",
         "dsign": "f2c::copysign",
         "dsin":  "f2c::sin",
         "dsinh": "f2c::sinh",
@@ -1086,18 +1028,23 @@ def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intr
     items = intrinsic_function_reference.items
     func_name = translateName(items[0], ctx)
 
-    if func_name == "real":
-        arg_spec_list = items[1]
-        kind = translateGeneric(arg_spec_list.items[1], ctx)
+    # REAL and INT convert to their default kind, or to the one their second
+    # argument names.
+    if func_name in ["real", "int"]:
+        args = items[1].items if isinstance(items[1], f2003.Actual_Arg_Spec_List) else (items[1],)
+        kind = None
+        if len(args) > 1:
+            kind = args[1].items[1] if isinstance(args[1], f2003.Actual_Arg_Spec) else args[1]
 
-        if kind == "rk4":
-            cast = "float"
-        elif kind == "rk8":
-            cast = "double"
-        else:
-            ctx.error(f"Unsupported REAL() kind: {kind}", intrinsic_function_reference)
+        intrinsic = fu.intrinsicType("integer" if func_name == "int" else "real", kind)
+        if intrinsic is None and fu.kindValue(kind) is None:
+            ctx.error(f"unknown kind {kind}: name its number with --kind {kind}=<number>",
+                      intrinsic_function_reference)
+        if intrinsic is None:
+            ctx.error(f"Unsupported {func_name.upper()}() kind {kind}",
+                      intrinsic_function_reference)
 
-        return f"({cast})({translateGeneric(arg_spec_list.items[0], ctx)})"
+        return f"({intrinsic.c()})({translateGeneric(args[0], ctx)})"
 
     if func_name not in intrinsic_funcs:
         ctx.error(f"Unsupported intrinsic func: {func_name}", intrinsic_function_reference)
@@ -1175,6 +1122,7 @@ def translateLevel4Expr(level_4_expr: f2003.Level_4_Expr, ctx: Context) -> str:
     op_map = {
         ".EQ.": "==",
         ".NE.": "!=",
+        "/=": "!=",
         ".LT.": "<",
         ".LE.": "<=",
         ".GT.": ">",
@@ -1187,8 +1135,11 @@ def translateLevel4Expr(level_4_expr: f2003.Level_4_Expr, ctx: Context) -> str:
     return f"{translateGeneric(items[0], ctx)} {op} {translateGeneric(items[2], ctx)}"
 
 
+# fparser names each logical level by the operator above it: And_Operand is
+# .NOT. x, Or_Operand x .AND. y, Equiv_Operand x .OR. y.  .NOT. binds looser
+# than a comparison, which C++'s ! does not.
 def translateAndOperand(and_operand: f2003.And_Operand, ctx: Context) -> str:
-    return f"!{translateGeneric(and_operand.items[1], ctx)}"
+    return f"!({translateGeneric(and_operand.items[1], ctx)})"
 
 
 def translateOrOperand(or_operand: f2003.Or_Operand, ctx: Context) -> str:
@@ -1199,38 +1150,38 @@ def translateEquivOperand(equiv_operand: f2003.Equiv_Operand, ctx: Context) -> s
     return f"{translateGeneric(equiv_operand.items[0], ctx)} || {translateGeneric(equiv_operand.items[2], ctx)}"
 
 
-# def translateExpr(expr: f2003.Expr, ctx: Context) -> str:
-#     return str(expr)
-
-
 def translateIntLiteralConstant(int_literal_constant: f2003.Int_Literal_Constant, ctx: Context) -> str:
-    if int_literal_constant.items[1] is not None:
-        ctx.error(f"Unsupported int literal kind specifier: {int_literal_constant.items[1]}", int_literal_constant)
+    value, kind_spec = int_literal_constant.items
 
-    return str(int_literal_constant.items[0])
+    intrinsic = fu.intrinsicType("integer", kind_spec)
+    if intrinsic is None and fu.kindValue(kind_spec) is None:
+        ctx.error(f"unknown kind {kind_spec}: name its number with --kind {kind_spec}=<number>",
+                  int_literal_constant)
+    if intrinsic is None:
+        ctx.error(f"Unsupported int literal kind specifier: {kind_spec}", int_literal_constant)
+
+    if intrinsic == OP.Int(True, 32):
+        return str(value)
+
+    return f"{intrinsic.c()}({value})"
 
 
 def translateRealLiteralConstant(real_literal_constant: f2003.Real_Literal_Constant, ctx: Context) -> str:
-    is_float = False
-
     kind_spec = real_literal_constant.items[1]
-    kind_spec_is_float = {
-        None: True,
-        "4": True,
-        "RK4": True,
-        "8": False,
-        "RK": False,
-        "RK8": False
-    }
 
-    if kind_spec not in kind_spec_is_float:
+    intrinsic = fu.intrinsicType("real", kind_spec)
+    if intrinsic is None and fu.kindValue(kind_spec) is None:
+        ctx.error(f"unknown kind {kind_spec}: name its number with --kind {kind_spec}=<number>",
+                  real_literal_constant)
+    if intrinsic is None:
         ctx.error(f"Unsupported real literal kind specifier: {kind_spec}", real_literal_constant)
 
-    is_float = kind_spec_is_float[kind_spec]
+    is_float = intrinsic == OP.Float(32)
     raw = str(real_literal_constant.items[0])
 
+    # An E exponent leaves the kind to the suffix: 1.0E-7 is default real,
+    # 1.0E-7_8 double.
     if "E" in raw:
-        is_float = True
         raw = raw.replace("E", "e")
     elif "D" in raw:
         is_float = False

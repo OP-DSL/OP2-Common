@@ -3,23 +3,21 @@ import dataclasses
 import json
 import logging
 import os
-import pdb
 import pstats
 import sys
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from multiprocessing import Pool
-from datetime import datetime
-from fnmatch import fnmatch
 from pathlib import Path
 from typing import List, Set
 
 import cpp
 import fortran
+from diagnostics import TranslatorError
 from jinja import env
 from language import Lang
-from op import OpError, Type
+from op import Type
 from scheme import Scheme
-from store import Application, ParseError
+from store import Application
 from target import Target
 from util import getVersion, safeFind
 
@@ -64,6 +62,7 @@ def main(argv=None) -> None:
     parser.add_argument("-D", help="Add to preprocessor defines", action="append", nargs=1, default=[])
 
     target_names = [target.name for target in Target.all()]
+
     parser.add_argument(
         "-t",
         "--target",
@@ -122,17 +121,24 @@ def main(argv=None) -> None:
 
     Type.set_formatter(lang.formatType)
 
+    lang_targets = [target.name for target in Target.all() if Scheme.find((lang, target))]
     if len(args.target) == 0:
-        args.target = [[target_name] for target_name in target_names]
+        args.target = [[name] for name in lang_targets]
 
-    include_dirs = set([Path(dir) for [dir] in args.I])
-    defines = [define for [define] in args.D]
-
+    # A mistake in the sources stops the translation; any other exception is
+    # a translator bug and keeps its traceback.
     try:
-        app = parse(args, lang)
-    except ParseError as e:
+        translate(args, lang, lang_targets)
+    except TranslatorError as e:
         logger.error(str(e))
         sys.exit(1)
+
+
+def translate(args: Namespace, lang: Lang, lang_targets: List[str]) -> None:
+    include_dirs = tuple(dict.fromkeys(Path(dir) for [dir] in args.I))
+    defines = [define for [define] in args.D]
+
+    app = parse(args, lang)
 
     if args.consts_module is not None:
         app.consts_module = lang.parseProgram(Path(args.consts_module), include_dirs, defines)
@@ -153,20 +159,15 @@ def main(argv=None) -> None:
     if args.verbose >= 2:
         logger.debug("%s", app)
 
-    # Validation phase
-    try:
-        logger.info("Validating...")
-        validate(args, lang, app)
-    except OpError as e:
-        logger.error(str(e))
-        sys.exit(1)
+    logger.info("Validating...")
+    validate(args, lang, app)
 
     for [target] in args.target:
         target = Target.find(target)
         scheme = Scheme.find((lang, target))
 
         if not scheme:
-            logger.warning(f"No scheme registered for {lang}/{target}")
+            logger.warning(f"No scheme registered for {lang}/{target}; {lang} has {', '.join(lang_targets)}")
             continue
 
         logger.info(f"Translation scheme: {scheme}")
@@ -266,19 +267,15 @@ def parse(args: Namespace, lang: Lang) -> Application:
     app = Application()
 
     if lang.ast_is_serializable:
-        try:
-            # Logging handlers are configured before this Pool() is constructed, so forked
-            # workers inherit them (fork start method, the Linux default). parse_file() has
-            # no logging calls today; if that changes, be aware forked workers would hold
-            # duplicated file descriptors over the same log file with no cross-process
-            # write synchronization, risking interleaved lines under -mp.
-            if args.multiprocess_parse:
-                app.programs = Pool().starmap(parse_file, f_args)
-            else:
-                app.programs = [parse_file(*args) for args in f_args]
-        except fortran.FortranSyntaxError as err:
-            logger.error(f"Syntax error in file {err.filename}:\n{err.message}")
-            sys.exit(1)
+        # Logging handlers are configured before this Pool() is constructed, so forked
+        # workers inherit them (fork start method, the Linux default). parse_file() has
+        # no logging calls today; if that changes, be aware forked workers would hold
+        # duplicated file descriptors over the same log file with no cross-process
+        # write synchronization, risking interleaved lines under -mp.
+        if args.multiprocess_parse:
+            app.programs = Pool().starmap(parse_file, f_args)
+        else:
+            app.programs = [parse_file(*args) for args in f_args]
     else:
         app.programs = []
         for a in f_args:
@@ -288,7 +285,7 @@ def parse(args: Namespace, lang: Lang) -> Application:
 
 
 def parse_file(i, raw_path, lang, args):
-    include_dirs = set([Path(dir) for [dir] in args.I])
+    include_dirs = tuple(dict.fromkeys(Path(dir) for [dir] in args.I))
     defines = [define for [define] in args.D]
 
     return lang.parseProgram(Path(raw_path), include_dirs, defines)
@@ -312,7 +309,7 @@ def validate(args: Namespace, lang: Lang, app: Application) -> None:
 
 def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) -> None:
     # Collect the paths of the generated files
-    include_dirs = set([Path(dir) for [dir] in args.I])
+    include_dirs = tuple(dict.fromkeys(Path(dir) for [dir] in args.I))
     defines = [define for [define] in args.D]
 
     fallback_loops = {}
@@ -345,14 +342,21 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
     FORTRAN_COMPILE_EXTENSIONS = {".F90", ".CUF", ".inc"}
     PER_LOOP_HEADER_EXTENSIONS = {".hpp", ".h", ".cuh", ".hip.h", ".mod"}
 
+    failed = False
     for i, (loop, program) in enumerate(app.loops(), 1):
         force_generate = scheme.target == Target.find("seq")
 
         # Generate loop host source
-        res = scheme.genLoopHost(env, loop, program, app, i, args.config, force_generate)
+        # Report every loop that fails before stopping.
+        try:
+            res = scheme.genLoopHost(env, loop, program, app, i, args.config, force_generate)
+        except TranslatorError as e:
+            logger.error(str(e))
+            res = None
 
         if res is None:
-            logger.warning(f"unable to generate loop host {i}")
+            logger.error(f"unable to generate loop host {i} ({loop.name}) for {scheme}")
+            failed = True
             continue
 
         files, fallback = res
@@ -377,6 +381,10 @@ def codegen(args: Namespace, scheme: Scheme, app: Application, force_soa: bool) 
         if fallback:
             fallback_loops[loop.name] = True
             logger.warning(f"Generated loop host {i} of {len(app.loops())} (fallback): {loop.name}")
+
+    # A master kernel would include the missing loops' hosts.
+    if failed:
+        sys.exit(1)
 
     # Generate consts file
     if scheme.consts_template is not None and getattr(scheme.lang, "user_consts_module", None) is None:

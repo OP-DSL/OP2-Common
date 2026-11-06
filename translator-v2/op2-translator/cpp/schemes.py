@@ -1,11 +1,21 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import op as OP
 from language import Lang
 from scheme import Scheme
-from store import Application, ParseError, Program
+from diagnostics import ParseError
+from store import Application, Program
+from strategy import indirectRW
 from target import Target
+
+
+# Atomics serve only the increments: a loop that reads and writes an indirect
+# dat is coloured.
+def colourIndirectRW(config: Dict[str, Any], loop: OP.Loop) -> None:
+    if indirectRW(loop):
+        config["atomics"] = False
+        config["color2"] = True
 
 
 class CppSeq(Scheme):
@@ -30,7 +40,7 @@ class CppSeq(Scheme):
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
         return ctk.writeSource(extracted_entities)
@@ -49,6 +59,13 @@ class CppOpenMP(Scheme):
     loop_host_templates = [Path("cpp/openmp/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/openmp/master_kernel.cpp.jinja")]
 
+    # SIMD lanes sharing a read-write target would lose updates.
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        if indirectRW(loop):
+            config["vectorise"] = config["vectorise"] | {"enable": False}
+        return config
+
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -59,9 +76,12 @@ class CppOpenMP(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
+        if ctk.hasRuntimeDim(loop):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
         return ctk.writeSource(extracted_entities)
@@ -80,6 +100,11 @@ class CppCuda(Scheme):
     loop_host_templates = [Path("cpp/cuda/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/cuda/master_kernel.cu.jinja")]
 
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
+
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -90,9 +115,14 @@ class CppCuda(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
+        if ctk.hasRuntimeDim(loop):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
@@ -128,6 +158,11 @@ class CppHip(Scheme):
     loop_host_templates = [Path("cpp/hip/loop_host.hpp.jinja")]
     master_kernel_templates = [Path("cpp/hip/master_kernel.cpp.jinja")]
 
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
+
     def translateKernel(
         self,
         loop: OP.Loop,
@@ -138,9 +173,14 @@ class CppHip(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
+        if ctk.hasRuntimeDim(loop):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
@@ -188,9 +228,12 @@ class CppJitCuda(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
+        if ctk.hasRuntimeDim(loop):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
@@ -248,9 +291,12 @@ class CppJitHip(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
+        if ctk.hasRuntimeDim(loop):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}")
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 

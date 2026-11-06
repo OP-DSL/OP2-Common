@@ -60,6 +60,7 @@ arg{{arg.id}}.opt ? ({{arg_to_pointer3(arg)}})[0] : zero_{{zero_type}}
         {%- set cast = lh.dat(arg).typ.c() -%}
     {%- endif -%}
 
+    {%- set offset = "" -%}
     {%- if arg is direct -%}
         {%- set offset = " + n" -%}
     {%- elif arg is indirect -%}
@@ -97,7 +98,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
     args[{{loop.index0}}] = arg{{arg.id}};
 {% endfor %}
 
-    op_profile_enter_kernel("{{lh.name}}", "c_seq", "{{variant_str()}}");
+    op_profile_enter_kernel("{{lh.name}}", "{{target.name}}", "{{variant_str()}}");
 
     op_profile_enter("MPI Exchanges");
     int n_exec = op_mpi_halo_exchanges(set, n_args, args);
@@ -119,6 +120,7 @@ extern "C" void op2_k_{{lh.name}}{{variant}}_c(
 {% endfor %}
 
     [[maybe_unused]] int zero_int = 0;
+    [[maybe_unused]] int64_t zero_int64_t = 0;
     [[maybe_unused]] bool zero_bool = 0;
     [[maybe_unused]] float zero_float = 0;
     [[maybe_unused]] double zero_double = 0;
