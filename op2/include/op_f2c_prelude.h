@@ -6,17 +6,11 @@
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
 #define DEVICE __device__
-
-#define H_MIN ::min
-#define H_MAX ::max
 #else
 #include <cmath>
 #include <cassert>
 
 #define DEVICE
-
-#define H_MIN std::min
-#define H_MAX std::max
 #endif
 
 namespace op::f2c {
@@ -25,10 +19,10 @@ constexpr int round32(int x) { return (x + 31) & ~31; }
 constexpr size_t round32(size_t x) { return (x + 31) & ~31; }
 
 DEVICE inline void trap() {
-#ifdef __HIPCC__
-    __builtin_trap();
+#if defined(__CUDA_ARCH__)
+    __trap();
 #else
-    assert(false);
+    __builtin_trap();
 #endif
 }
 
@@ -39,6 +33,11 @@ using IndexType = int;
 // Avoids <type_traits> (not reliably available under NVRTC JIT compilation)
 template<typename U> struct is_const_type { static constexpr bool value = false; };
 template<typename U> struct is_const_type<const U> { static constexpr bool value = true; };
+
+template<typename U> struct is_integer_type { static constexpr bool value = false; };
+template<> struct is_integer_type<int> { static constexpr bool value = true; };
+template<> struct is_integer_type<long> { static constexpr bool value = true; };
+template<> struct is_integer_type<long long> { static constexpr bool value = true; };
 
 template<bool B, typename R = void> struct enable_if {};
 template<typename R> struct enable_if<true, R> { using type = R; };
@@ -154,16 +153,27 @@ public:
 
 /* Fortran intrinsics */
 
+// x**e for an integer exponent, by repeated squaring as gfortran's powi: a
+// negative exponent gives 1/x**|e| for a real base, and for an integer one
+// 0 unless the base is 1 or -1.
 template<typename T>
 inline constexpr T pow(T x, int e) {
-    if (e < 0)  return 0;
-    if (e == 0) return 1;
+    if constexpr (is_integer_type<T>::value) {
+        if (e < 0)
+            return x == 1 ? 1 : x == -1 ? ((e & 1) ? -1 : 1) : 0;
+    }
 
-    T r = x;
-    for (int i = 1; i < e; ++i)
-        r *= x;
-
-    return r;
+    unsigned n = e < 0 ? 0u - static_cast<unsigned>(e) : static_cast<unsigned>(e);
+    T r = 1;
+    while (true) {
+        if (n & 1)
+            r *= x;
+        n >>= 1;
+        if (n == 0)
+            break;
+        x *= x;
+    }
+    return e < 0 ? T(1) / r : r;
 }
 
 inline constexpr float pow(float x, float e) { return powf(x, e); }
@@ -175,63 +185,59 @@ inline constexpr double pow(double x, float e) { return ::pow(x, (double) e); }
 inline constexpr float pow(int x, float e) { return powf((float) x, e); }
 inline constexpr double pow(int x, double e) { return ::pow((double) x, e); }
 
-DEVICE inline int abs(int x) { return ::abs(x); }
-DEVICE inline int64_t abs(int64_t x) { return ::abs(x); }
+// An integer intrinsic is a template, so it takes whichever type int64_t is;
+// a float or double argument picks the non-template overload.
+template<typename T> DEVICE inline T abs(T x) { return x < 0 ? -x : x; }
 inline constexpr float abs(float x) { return fabsf(x); }
 inline constexpr double abs(double x) { return fabs(x); }
 
-inline constexpr double dble(int x) { return (double)x; }
-inline constexpr double dble(int64_t x) { return (double)x; }
-inline constexpr double dble(float x) { return (double)x; }
-inline constexpr double dble(double x) { return x; }
+template<typename T> inline constexpr double dble(T x) { return static_cast<double>(x); }
 
-inline constexpr int int_(int x) { return x; }
-inline constexpr int int_(int64_t x) { return (int)x; }
-inline constexpr int int_(float x) { return (int)x; }
-inline constexpr int int_(double x) { return (int)x; }
+inline constexpr float aint(float x) { return truncf(x); }
+inline constexpr double aint(double x) { return ::trunc(x); }
 
-DEVICE inline int min(int x0, int x1) { return H_MIN(x0, x1); }
-DEVICE inline int min(int x0, int x1, int x2) { return H_MIN(H_MIN(x0, x1), x2); }
-DEVICE inline int min(int x0, int x1, int x2, int x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
+template<typename T> DEVICE inline T min(T x0, T x1) { return x1 < x0 ? x1 : x0; }
+template<typename T> DEVICE inline T max(T x0, T x1) { return x1 > x0 ? x1 : x0; }
 
-DEVICE inline int64_t min(int64_t x0, int64_t x1) { return H_MIN(x0, x1); }
-DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2) { return H_MIN(H_MIN(x0, x1), x2); }
-DEVICE inline int64_t min(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MIN(H_MIN(x0, x1), H_MIN(x2, x3)); }
-
+#if defined(__CUDACC__) || defined(__HIPCC__)
 inline constexpr float min(float x0, float x1) { return fminf(x0, x1); }
-inline constexpr float min(float x0, float x1, float x2) { return fminf(fminf(x0, x1), x2); }
-inline constexpr float min(float x0, float x1, float x2, float x3) { return fminf(fminf(x0, x1), fminf(x2, x3)); }
-
 inline constexpr double min(double x0, double x1) { return fmin(x0, x1); }
-inline constexpr double min(double x0, double x1, double x2) { return fmin(fmin(x0, x1), x2); }
-inline constexpr double min(double x0, double x1, double x2, double x3) { return fmin(fmin(x0, x1), fmin(x2, x3)); }
-
-DEVICE inline int max(int x0, int x1) { return H_MAX(x0, x1); }
-DEVICE inline int max(int x0, int x1, int x2) { return H_MAX(H_MAX(x0, x1), x2); }
-DEVICE inline int max(int x0, int x1, int x2, int x3) { return H_MAX(H_MAX(x0, x1), H_MAX(x2, x3)); }
-
-DEVICE inline int64_t max(int64_t x0, int64_t x1) { return H_MAX(x0, x1); }
-DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2) { return H_MAX(H_MAX(x0, x1), x2); }
-DEVICE inline int64_t max(int64_t x0, int64_t x1, int64_t x2, int64_t x3) { return H_MAX(H_MAX(x0, x1), H_MAX(x2, x3)); }
-
 inline constexpr float max(float x0, float x1) { return fmaxf(x0, x1); }
-inline constexpr float max(float x0, float x1, float x2) { return fmaxf(fmaxf(x0, x1), x2); }
-inline constexpr float max(float x0, float x1, float x2, float x3) { return fmaxf(fmaxf(x0, x1), fmaxf(x2, x3)); }
-
 inline constexpr double max(double x0, double x1) { return fmax(x0, x1); }
-inline constexpr double max(double x0, double x1, double x2) { return fmax(fmax(x0, x1), x2); }
-inline constexpr double max(double x0, double x1, double x2, double x3) { return fmax(fmax(x0, x1), fmax(x2, x3)); }
+#else
+// libm's fmin and fmax, a NaN argument giving the other (Fortran leaves a
+// NaN's result to the processor), as selects: GCC does not vectorise the
+// calls.
+inline constexpr float min(float x0, float x1) { return ((x1 < x0) | (x0 != x0)) ? x1 : x0; }
+inline constexpr double min(double x0, double x1) { return ((x1 < x0) | (x0 != x0)) ? x1 : x0; }
+inline constexpr float max(float x0, float x1) { return ((x1 > x0) | (x0 != x0)) ? x1 : x0; }
+inline constexpr double max(double x0, double x1) { return ((x1 > x0) | (x0 != x0)) ? x1 : x0; }
+#endif
 
-inline constexpr int mod(int a, int p) { return a % p; }
-inline constexpr int64_t mod(int64_t a, int64_t p) { return a % p; }
+// A float and a double compare as doubles, as Fortran's mixed kinds do.
+inline constexpr double min(float x0, double x1) { return min(static_cast<double>(x0), x1); }
+inline constexpr double min(double x0, float x1) { return min(x0, static_cast<double>(x1)); }
+inline constexpr double max(float x0, double x1) { return max(static_cast<double>(x0), x1); }
+inline constexpr double max(double x0, float x1) { return max(x0, static_cast<double>(x1)); }
+
+// Fortran's MIN and MAX take any number of arguments.
+template<typename T0, typename T1, typename T2, typename... Ts>
+DEVICE inline constexpr auto min(T0 x0, T1 x1, T2 x2, Ts... xs) {
+    return min(min(x0, x1), x2, xs...);
+}
+template<typename T0, typename T1, typename T2, typename... Ts>
+DEVICE inline constexpr auto max(T0 x0, T1 x1, T2 x2, Ts... xs) {
+    return max(max(x0, x1), x2, xs...);
+}
+
+template<typename T> inline constexpr T mod(T a, T p) { return a % p; }
 inline constexpr float mod(float a, float p) { return fmodf(a, p); }
 inline constexpr double mod(double a, double p) { return fmod(a, p); }
 
 inline constexpr int nint(float x) { return lroundf(x); }
 inline constexpr int nint(double x) { return lround(x); }
 
-DEVICE inline int copysign(int x, int y) { return y >= 0 ? abs(x) : -abs(x); }
-DEVICE inline int64_t copysign(int64_t x, int64_t y) { return y >= 0 ? abs(x) : -abs(x); }
+template<typename T> DEVICE inline T copysign(T x, T y) { return y >= 0 ? abs(x) : -abs(x); }
 inline constexpr float copysign(float x, float y) { return copysignf(x, y); }
 inline constexpr double copysign(double x, double y) { return ::copysign(x, y); }
 

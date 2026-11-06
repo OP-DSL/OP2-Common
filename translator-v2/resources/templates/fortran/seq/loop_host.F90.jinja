@@ -119,7 +119,7 @@ subroutine op2_k_{{lh.name}}_wr( &
 {% endfor %}
     integer(4) :: n
 
-{% for arg in lh.args|gbl|reduction if lh is indirect %}
+{% for arg in lh.args|gbl|reject("read") if lh is indirect %}
     gbl{{arg.id}}_temp = gbl{{arg.id}}{{"\n" if loop.last}}
 {% endfor %}
 {% for arg in lh.args|info if lh is indirect %}

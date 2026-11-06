@@ -3,6 +3,7 @@ from typing import Callable, Dict, List, Optional, Set, Tuple
 from clang.cindex import Cursor, CursorKind, SourceRange
 
 import op as OP
+from cpp.parser import sourceLocation
 from store import Application, Entity, Function, Type
 from util import Location, Rewriter, Span, find, safeFind
 
@@ -14,6 +15,22 @@ def extentToSpan(extent: SourceRange) -> Span:
     return Span(start, end)
 
 
+# Whether a loop has a map index or dim known only at run time.
+def hasRuntimeDim(loop: OP.Loop) -> bool:
+    return any(dat.dim is None for dat in loop.dats) or any(
+        (isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.map_idx is None)
+        or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
+        for arg in loop.args
+    )
+
+
+def tokenText(node: Cursor) -> str:
+    return " ".join(token.spelling for token in node.get_tokens())
+
+
+# The kernel's functions and types, each with a rewriter of its text.  A
+# function in a named namespace, or a call of a function template, is an
+# error: the text is written into the loop's own namespace, untemplated.
 def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[Entity, Rewriter]]:
     unprocessed_entities = list(entities)
     extracted_entities = []
@@ -24,9 +41,22 @@ def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[
         if safeFind(extracted_entities, lambda e: e[0] == entity):
             continue
 
-        for dependency in entity.depends:
-            dependency_entities = app.findEntities(dependency, entity.program)
-            unprocessed_entities.extend(dependency_entities)
+        if isinstance(entity, Function):
+            parent = entity.ast.semantic_parent
+            if parent is not None and parent.kind == CursorKind.NAMESPACE and parent.spelling:
+                raise OP.OpError(
+                    f"{entity.name}: kernel functions in a namespace are not supported: {parent.spelling}",
+                    sourceLocation(entity.ast, entity.program),
+                )
+            for call in entity.template_calls:
+                raise OP.OpError(
+                    f"{entity.name}: kernels may not call function templates: {tokenText(call)}",
+                    sourceLocation(call, entity.program),
+                )
+
+        # In name order: a set's order changes from run to run.
+        dependencies = [d for key in entity.depends for d in app.findByKey(key, entity.program)]
+        unprocessed_entities.extend(sorted(dependencies, key=lambda d: (d.name, d.key)))
 
         rewriter = Rewriter(entity.program.source, [extentToSpan(entity.ast.extent)])
         extracted_entities.insert(0, (entity, rewriter))
@@ -37,7 +67,7 @@ def extractDependencies(entities: List[Entity], app: Application) -> List[Tuple[
 def updateFunctionTypes(entities: List[Tuple[Entity, Rewriter]], replacement: Callable[[str, Entity], str]) -> None:
     for entity, rewriter in filter(lambda e: isinstance(e[0], Function), entities):
         function_type_span = extentToSpan(next(entity.ast.get_tokens()).extent)
-        rewriter.update(function_type_span, lambda s: replacement(s, entity))
+        rewriter.update(function_type_span, lambda s, entity=entity: replacement(s, entity))
 
 
 def renameConsts(
@@ -51,7 +81,7 @@ def renameConsts(
                 continue
 
             if node.spelling in const_ptrs:
-                rewriter.update(extentToSpan(node.extent), lambda s: replacement(s, entity))
+                rewriter.update(extentToSpan(node.extent), lambda s, entity=entity: replacement(s, entity))
 
 
 def mapParam(
@@ -76,23 +106,23 @@ def findCalled(func: Function, param_idx: int, funcs: List[Function]) -> List[Tu
     while len(stack) > 0:
         candidate_func, candidate_param_idx = stack.pop()
 
-        if candidate_func.name not in checked:
-            checked[candidate_func.name] = set()
-        elif candidate_param_idx in checked[candidate_func.name]:
+        if candidate_func.key not in checked:
+            checked[candidate_func.key] = set()
+        elif candidate_param_idx in checked[candidate_func.key]:
             continue
 
-        checked[candidate_func.name].add(candidate_param_idx)
+        checked[candidate_func.key].add(candidate_param_idx)
 
         for called_func, called_param_idx in findCalled2(candidate_func, candidate_param_idx, funcs):
-            if called_func.name in checked and called_param_idx in checked[called_func.name]:
+            if called_func.key in checked and called_param_idx in checked[called_func.key]:
                 continue
 
             stack.append((called_func, called_param_idx))
 
     called_list = []
-    for func_name, indicies in checked.items():
+    for func_key, indicies in checked.items():
         for index in indicies:
-            called_list.append((find(funcs, lambda f: f.name == func_name), index))
+            called_list.append((find(funcs, lambda f: f.key == func_key), index))
 
     return called_list
 
@@ -113,7 +143,7 @@ def findCalled2(func: Function, param_idx: int, funcs: List[Function]) -> List[T
         if callee is None:
             continue
 
-        callee_func = safeFind(funcs, lambda f: f.name == callee.spelling)
+        callee_func = safeFind(funcs, lambda f: f.key == callee.get_usr())
         if callee_func is None:
             continue
 
@@ -171,7 +201,7 @@ def insertStrides(
         entities = [(entity, rewriter)]
 
     funcs = [e for e, _ in entities if isinstance(e, Function)]
-    rewriters = {e.name: r for e, r in entities if isinstance(e, Function)}
+    rewriters = {e.key: r for e, r in entities if isinstance(e, Function)}
 
     for arg_idx in range(len(loop.args)):
         arg = loop.args[arg_idx]
@@ -191,7 +221,7 @@ def insertStrides(
             if param_idx >= len(func.parameters):
                 return
 
-            func_rewriter = rewriters.get(func.name)
+            func_rewriter = rewriters.get(func.key)
             if func_rewriter is None:
                 return
 
@@ -256,7 +286,7 @@ def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
             resolved = True
 
             for dependency in entity.depends:
-                if safeFind(entities, lambda e: e[0].name == dependency):
+                if safeFind(entities, lambda e: e[0].key == dependency):
                     resolved = False
                     break
 
@@ -271,5 +301,12 @@ def writeSource(entities: List[Tuple[Entity, Rewriter]]) -> str:
                     source = source + ";"
 
                 break
+        else:
+            names = ", ".join(entity.name for entity, _ in entities)
+            first = entities[0][0]
+            raise OP.OpError(
+                f"recursive kernel functions or types are not supported: {names}",
+                sourceLocation(first.ast, first.program),
+            )
 
     return source
