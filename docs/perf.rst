@@ -51,6 +51,71 @@ Usage: pass it as the process wrapper to your MPI launcher:
 This is equivalent to manually calling ``numactl`` per rank but works portably across the MPI implementations above without per-rank launch scripts.
 
 
-.. CUDA arguments
-.. --------------
-.. tbc
+.. _strategies:
+
+Execution Strategies
+--------------------
+
+A loop generated for the C++ ``openmp`` target carries a body for each way it can be run, and OP2 picks one for every call.  The strategies:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Strategy
+     - How the loop runs
+   * - ``plain``
+     - One element at a time, nothing protected: a loop that updates no indirect dat.
+   * - ``atomics``
+     - Each indirect increment as an atomic add.
+   * - ``colouring``
+     - The elements coloured so that no two of a colour share a target, one colour after another.
+   * - ``chunk_atomics``
+     - The elements in chunks whose increment targets are staged in a host thread's scratch, accumulated there, then added to their targets once each.
+   * - ``chunk_colouring``
+     - Chunks coloured so that no two running together share a target; each chunk's targets are staged, updated by its elements one thread colour at a time, and stored back.
+
+Under MPI every strategy runs a loop's core elements, which need no halo data, while the halo exchange is under way, and the rest once it has arrived: ``colouring`` colours the core apart and runs its colours first, and the chunked strategies never let a chunk span the two.  On the host the calling thread tests the exchange every ``OP_MPI_TEST_INTERVAL`` elements it runs of the core (default 1024; 0 never tests), as an MPI that progresses messages only inside its calls, such as Cray MPICH, needs to overlap the exchange; ``op_init`` asks MPI for ``MPI_THREAD_FUNNELED`` when it initialises it.
+
+A loop with an indirect ``OP_RW`` or ``OP_WRITE`` argument never runs the atomic strategies.
+
+Each loop keeps its strategies in a ladder, ``chunk_atomics``, ``atomics``, ``chunk_colouring``, ``colouring`` (or ``plain`` alone), and a call runs the first that is enabled and ready for it; a chunked strategy may decline a call, for instance when its chunks share too few targets to be worth staging (``low_compression``).  The last strategy runs when none is.  Enabled by default:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Backend
+     - Enabled strategies
+   * - OpenMP (``openmp``)
+     - ``plain``, ``chunk_colouring``, ``colouring``
+
+Environment variables (read by ``op_init``):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Variable
+     - Effect
+   * - ``OP_<STRATEGY>``, e.g. ``OP_CHUNK_ATOMICS``
+     - ``on`` or ``off``: enables or disables the strategy; ``off`` also keeps the autotuner from trying it.
+   * - ``OP_STRATEGY``
+     - ``<strategy>`` or ``<loop>:<strategy>``, a comma-separated list: forces the strategy (a loop's own item wins).  A loop that cannot run it warns ``<loop> passes over its forced strategy <strategy>: <reason>``.
+   * - ``OP_CHUNK_SIZES``
+     - Elements per chunk of the chunked strategies, default 256.
+   * - ``OP_CHUNK_ATOMICS_MIN_COMPRESSION``
+     - Default 1.5: ``chunk_atomics`` declines a call whose chunks average fewer references per staged target; 0 accepts every call.
+   * - ``OP_MPI_TEST_INTERVAL``
+     - Integer, default 1024: elements the calling thread runs of a loop's core between tests of the outstanding halo exchange; 0 never tests.
+
+``OP_CHUNK_SIZES`` is a strategy's *axis*: ``OP_<STRATEGY>_<AXIS>`` (e.g. ``OP_CHUNK_ATOMICS_CHUNK_SIZES``) sets it for one strategy, and every axis takes one value or a comma-separated list, of which the first runs and the rest are only tried by the autotuner.
+
+Autotuning
+----------
+
+``OP_AUTOTUNE=report`` times every candidate (each strategy at each combination of its axes' values) for each configuration of a loop (its set, run size and arguments) once that configuration has been seen ``OP_AUTOTUNE_MIN_CALLS`` times (default 2), with ``OP_AUTOTUNE_WARMUP`` untimed runs (default 1) and ``OP_AUTOTUNE_SAMPLES`` timed ones (default 5), and still runs the ladder's choice.  The space explored is what the variables above allow: the strategies not turned off and the values each axis lists.  ``OP_AUTOTUNE=select`` also runs a configuration's fastest candidate once it is explored, when that beats the ladder's choice by more than ``OP_AUTOTUNE_MARGIN`` (default 0.03, a fraction of the ladder's time).  Either mode writes a CSV report to ``OP_AUTOTUNE_REPORT`` (``.<rank>`` appended under MPI) with the columns ``loop``, ``configuration``, ``calls``, ``strategy``, ``status``, ``median_us``, ``samples``, ``ladder``, ``fastest``, ``speedup``, ``selected``, ``state`` and ``statistics`` (the strategy's plan figures).
+
+Strategies whose plans for a configuration would be the same share one, planned once: the same strategy in loops whose calls have the same shape.  Once a configuration is explored, the strategies that neither the ladder nor the selection runs drop their plans for it.
+
+At ``op_profile_output``, or at ``op_exit`` when nothing called it, rank 0 prints a summary of its own loops: the configurations explored and those not, the time over their calls at the ladder's choices and at the fastest candidates, and the loops where a candidate beat the ladder's choice by more than 0.5%, most time saved first, each with its ladder's and fastest candidates.  A candidate shows as its strategy and the axis values that differ from the ladder's.  The CSV report has every configuration.
