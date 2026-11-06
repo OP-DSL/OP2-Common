@@ -36,7 +36,7 @@
 
 #include <mpi.h>
 
-#include <op_gpu_shims.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/env.h>

@@ -18,10 +18,8 @@
 #define gpuFuncAttributes_t cudaFuncAttributes
 
 #define gpuSuccess cudaSuccess
-#define gpuFuncCachePreferL1 cudaFuncCachePreferL1
 #define gpuStreamNonBlocking cudaStreamNonBlocking
 #define gpuEventDisableTiming cudaEventDisableTiming
-#define gpuHostRegisterDefault cudaHostRegisterDefault
 
 #define gpuGetLastError cudaGetLastError
 #define gpuGetErrorString cudaGetErrorString
@@ -37,46 +35,56 @@
 #define gpuMallocAsync cudaMallocAsync
 #define gpuFreeAsync cudaFreeAsync
 #define gpuMemcpyAsync cudaMemcpyAsync
+#define gpuMemsetAsync cudaMemsetAsync
 
 #define gpuMemcpyHostToDevice cudaMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost cudaMemcpyDeviceToHost
-#define gpuMemcpyDefault cudaMemcpyDefault
 
 #define gpuHostMalloc cudaMallocHost
 #define gpuHostFree cudaFreeHost
-#define gpuHostRegister cudaHostRegister
-#define gpuHostUnregister cudaHostUnregister
 
 #define gpuDeviceSynchronize cudaDeviceSynchronize
 #define gpuStreamSynchronize cudaStreamSynchronize
 
-#define gpuStreamCreateWithFlags cudaStreamCreateWithFlags
 #define gpuEventCreateWithFlags cudaEventCreateWithFlags
+#define gpuEventCreate cudaEventCreate
+#define gpuEventDestroy cudaEventDestroy
+#define gpuEventElapsedTime cudaEventElapsedTime
 #define gpuEventRecord cudaEventRecord
 #define gpuEventSynchronize cudaEventSynchronize
-#define gpuEventDestroy cudaEventDestroy
-#define gpuStreamWaitEvent cudaStreamWaitEvent
 
-#define gpuMemcpyToSymbol cudaMemcpyToSymbol
 #define gpuGetSymbolAddress cudaGetSymbolAddress
 
 #define gpuGetDeviceCount cudaGetDeviceCount
 #define gpuGetDevice cudaGetDevice
 #define gpuSetDevice cudaSetDevice
-#define gpuDeviceSetCacheConfig cudaDeviceSetCacheConfig
 #define gpuGetDeviceProperties cudaGetDeviceProperties
 
 #define gpuFuncGetAttributes cudaFuncGetAttributes
+#define gpuFuncSetAttribute cudaFuncSetAttribute
+#define gpuFuncAttributeMaxDynamicSharedMemorySize cudaFuncAttributeMaxDynamicSharedMemorySize
 
 // Driver API
 #define gpuDrvResult_t CUresult
 #define gpuDrvModule_t CUmodule
 #define gpuDrvFunction_t CUfunction
+#define gpuDrvDevicePtr_t CUdeviceptr
+
+#define gpuDrvFuncSetAttribute cuFuncSetAttribute
+#define gpuDrvFuncAttributeMaxDynamicSharedMemorySize CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES
+#define gpuDrvFuncGetAttribute cuFuncGetAttribute
+#define gpuDrvFuncAttribute_t CUfunction_attribute
+#define gpuDrvFuncAttributeNumRegs CU_FUNC_ATTRIBUTE_NUM_REGS
+#define gpuDrvFuncAttributeMaxThreadsPerBlock CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK
+#define gpuDrvFuncAttributeLocalSizeBytes CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES
+#define gpuDrvFuncAttributeSharedSizeBytes CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES
 
 #define gpuDrvGetErrorName cuGetErrorName
 #define gpuDrvModuleLoadData cuModuleLoadData
+#define gpuDrvModuleUnload cuModuleUnload
 #define gpuDrvModuleGetFunction cuModuleGetFunction
-#define gpuDrvOccupancyMaxPotentialBlockSize cuOccupancyMaxPotentialBlockSize
+#define gpuDrvModuleGetGlobal cuModuleGetGlobal
+#define gpuDrvMemcpyHtoDAsync cuMemcpyHtoDAsync
 #define gpuDrvLaunchKernel cuLaunchKernel
 
 // RTC API
@@ -111,10 +119,8 @@
 #define gpuFuncAttributes_t hipFuncAttributes
 
 #define gpuSuccess hipSuccess
-#define gpuFuncCachePreferL1 hipFuncCachePreferL1
 #define gpuStreamNonBlocking hipStreamNonBlocking
 #define gpuEventDisableTiming hipEventDisableTiming
-#define gpuHostRegisterDefault hipHostRegisterDefault
 
 #define gpuGetLastError hipGetLastError
 #define gpuGetErrorString hipGetErrorString
@@ -130,46 +136,59 @@
 #define gpuMallocAsync hipMallocAsync
 #define gpuFreeAsync hipFreeAsync
 #define gpuMemcpyAsync hipMemcpyAsync
+#define gpuMemsetAsync hipMemsetAsync
 
 #define gpuMemcpyHostToDevice hipMemcpyHostToDevice
 #define gpuMemcpyDeviceToHost hipMemcpyDeviceToHost
-#define gpuMemcpyDefault hipMemcpyDefault
 
 #define gpuHostMalloc hipHostMalloc
 #define gpuHostFree hipHostFree
-#define gpuHostRegister hipHostRegister
-#define gpuHostUnregister hipHostUnregister
 
 #define gpuDeviceSynchronize hipDeviceSynchronize
 #define gpuStreamSynchronize hipStreamSynchronize
 
-#define gpuStreamCreateWithFlags hipStreamCreateWithFlags
 #define gpuEventCreateWithFlags hipEventCreateWithFlags
+#define gpuEventCreate hipEventCreate
+#define gpuEventDestroy hipEventDestroy
+#define gpuEventElapsedTime hipEventElapsedTime
 #define gpuEventRecord hipEventRecord
 #define gpuEventSynchronize hipEventSynchronize
-#define gpuEventDestroy hipEventDestroy
-#define gpuStreamWaitEvent hipStreamWaitEvent
 
-#define gpuMemcpyToSymbol hipMemcpyToSymbol
 #define gpuGetSymbolAddress hipGetSymbolAddress
 
 #define gpuGetDeviceCount hipGetDeviceCount
 #define gpuGetDevice hipGetDevice
 #define gpuSetDevice hipSetDevice
-#define gpuDeviceSetCacheConfig hipDeviceSetCacheConfig
 #define gpuGetDeviceProperties hipGetDeviceProperties
 
 #define gpuFuncGetAttributes hipFuncGetAttributes
+#define gpuFuncSetAttribute hipFuncSetAttribute
+#define gpuFuncAttributeMaxDynamicSharedMemorySize hipFuncAttributeMaxDynamicSharedMemorySize
 
 // Driver API
 #define gpuDrvResult_t hipError_t
 #define gpuDrvModule_t hipModule_t
 #define gpuDrvFunction_t hipFunction_t
+#define gpuDrvDevicePtr_t hipDeviceptr_t
+
+// HIP has no attribute setter for a module function, and an AMD device needs
+// no opt-in for dynamic shared memory.
+#define gpuDrvFuncSetAttribute(function, attribute, value) hipSuccess
+#define gpuDrvFuncGetAttribute hipFuncGetAttribute
+#define gpuDrvFuncAttribute_t hipFunction_attribute
+#define gpuDrvFuncAttributeNumRegs HIP_FUNC_ATTRIBUTE_NUM_REGS
+#define gpuDrvFuncAttributeMaxThreadsPerBlock HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK
+#define gpuDrvFuncAttributeLocalSizeBytes HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES
+#define gpuDrvFuncAttributeSharedSizeBytes HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES
 
 #define gpuDrvGetErrorName hipGetErrorString
 #define gpuDrvModuleLoadData hipModuleLoadData
+#define gpuDrvModuleUnload hipModuleUnload
 #define gpuDrvModuleGetFunction hipModuleGetFunction
-#define gpuDrvOccupancyMaxPotentialBlockSize hipOccupancyMaxPotentialBlockSize
+#define gpuDrvModuleGetGlobal hipModuleGetGlobal
+// Before ROCm 7 the source is a non-const pointer, only read.
+#define gpuDrvMemcpyHtoDAsync(dst, src, bytes, stream) \
+    hipMemcpyHtoDAsync(dst, const_cast<void *>(src), bytes, stream)
 #define gpuDrvLaunchKernel hipModuleLaunchKernel
 
 // RTC API
@@ -177,7 +196,10 @@
 #define gpuRtcProgram_t hiprtcProgram
 
 #define gpuRtcGetErrorString hiprtcGetErrorString
-#define gpuRtcCreateProgram hiprtcCreateProgram
+// Before ROCm 7 the headers and their names are non-const, only read.
+#define gpuRtcCreateProgram(prog, src, name, count, headers, names) \
+    hiprtcCreateProgram(prog, src, name, count, const_cast<const char **>(headers), \
+                        const_cast<const char **>(names))
 #define gpuRtcCompileProgram hiprtcCompileProgram
 #define gpuRtcGetProgramLogSize hiprtcGetProgramLogSize
 #define gpuRtcGetProgramLog hiprtcGetProgramLog
