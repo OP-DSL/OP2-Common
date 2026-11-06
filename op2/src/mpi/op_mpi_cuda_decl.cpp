@@ -35,6 +35,7 @@
 //
 
 #include <mpi.h>
+#include <op2/env.h>
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
@@ -73,6 +74,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
   op_init_core(argc, argv, diags);
 
   cutilDeviceInit(argc, argv);
+  op::env::finish();
 }
 
 void op_mpi_init(int argc, char **argv, int diags, MPI_Fint global,
@@ -95,6 +97,7 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   op_init_core(argc, argv, diags);
 
   cutilDeviceInit(argc, argv);
+  op::env::finish();
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,

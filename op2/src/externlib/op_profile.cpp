@@ -1,4 +1,5 @@
 #include <op_profile.h>
+#include <op2/env.h>
 #include <op_lib_core.h>
 
 #ifdef OPMPI
@@ -218,6 +219,14 @@ op_profile& op_profile::instance() {
   return timing;
 }
 
+void op_profile::read_environment() {
+  int value = static_cast<int>(level);
+  if (op::env::parse_number("OP_PROFILE_LEVEL", value, 0,
+                            static_cast<int>(op_profile_level::kernel_detailed)))
+    requested_level = static_cast<op_profile_level>(value);
+  op::env::parse_text("OP_PROFILE_JSON_OUTPUT", json_output);
+}
+
 void op_profile::set_level(op_profile_level new_level) {
   assert(!started);
   level = new_level;
@@ -227,19 +236,8 @@ void op_profile::start(std::string_view name) {
   assert(!started);
   assert(current_scope.size() == 0);
 
-  char *level_str = getenv("OP_PROFILE_LEVEL");
-  if (level_str != nullptr) {
-    int level_int = -1;
-
-    try {
-      level_int = std::stoi(level_str);
-    } catch (...) {};
-
-    if (level_int < 0 || level_int > static_cast<int>(op_profile_level::kernel_detailed))
-      std::printf("warning: OP_PROFILE_LEVEL set to unsupported value: %s\n", level_str);
-    else
-      level = static_cast<op_profile_level>(level_int);
-  }
+  if (requested_level)
+    level = *requested_level;
 
   if (level == op_profile_level::disabled) return;
 
@@ -385,9 +383,8 @@ void op_profile::output() {
 
   print_summary();
 
-  char *json_filename = getenv("OP_PROFILE_JSON_OUTPUT");
-  if (json_filename != NULL)
-    output_json(json_filename);
+  if (!json_output.empty())
+    output_json(json_output);
 }
 
 void op_profile::output_json(std::string_view filename) {
@@ -554,6 +551,7 @@ void op_profile::print_kernel_summary(const std::vector<std::string>& path, unsi
 
 extern "C" {
 
+void op_profile_init() { op_profile::instance().read_environment(); }
 void op_profile_start(const char* name) { op_profile::instance().start(name); }
 
 void op_profile_enter(const char* name) { op_profile::instance().enter(name); }
