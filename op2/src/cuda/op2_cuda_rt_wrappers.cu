@@ -34,9 +34,11 @@
 #include <op_lib_core.h>
 #include <op_lib_c.h>
 
-#include <op_gpu_shims.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <vector>
 
 #ifdef __CUDACC__
@@ -79,11 +81,12 @@ static device_buffer device_result;
 
 static bool gbl_inc_atomic = false;
 
-static bool needs_per_thread_storage(const op_arg& arg) {
+static bool needs_per_thread_storage(const op_arg& arg,
+                                     bool use_gbl_inc_atomics) {
     if (arg.argtype == OP_ARG_INFO) return true;
     if (arg.argtype != OP_ARG_GBL)  return false;
 
-    if (arg.acc == OP_INC && gbl_inc_atomic) return false;
+    if (arg.acc == OP_INC && use_gbl_inc_atomics) return false;
 
     return arg.acc == OP_MIN ||
            arg.acc == OP_MAX ||
@@ -91,9 +94,11 @@ static bool needs_per_thread_storage(const op_arg& arg) {
            arg.acc == OP_WORK;
 }
 
-static bool needs_device_storage(const op_arg& arg) {
+// A READ global the kernel has from the host side (by value, or baked into
+// it) needs no device copy.
+static bool needs_device_storage(const op_arg& arg, bool on_host) {
     if (arg.argtype == OP_ARG_INFO) return true;
-    return arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && arg.dim == 1);
+    return arg.argtype == OP_ARG_GBL && !(arg.acc == OP_READ && on_host);
 }
 
 static bool opt_disabled(const op_arg& arg, const op_arg *args) {
@@ -103,18 +108,64 @@ static bool opt_disabled(const op_arg& arg, const op_arg *args) {
     return arg.opt == 0;
 }
 
+// Per-thread globals: component d of thread t at t + d * max_threads, for
+// every one of max_threads threads; the reductions read all of them.
+
+// MIN, MAX and WORK start every thread's copy at the host value, staged in
+// the arena; INC starts at zero.
+static bool starts_from_host(const op_arg& arg) {
+    return arg.argtype == OP_ARG_GBL && arg.acc != OP_INC;
+}
+
+// Copy value to every thread's copy, in units of T dividing the element.
+template<typename T>
+__global__ void broadcast_kernel(T *out, const T *value, int dim, int units,
+                                 int max_threads) {
+    for (int t = blockIdx.x * blockDim.x + threadIdx.x; t < max_threads;
+         t += blockDim.x * gridDim.x)
+        for (int d = 0; d < dim; ++d)
+            for (int u = 0; u < units; ++u)
+                out[((size_t) d * max_threads + t) * units + u] = value[d * units + u];
+}
+
+template<typename T>
+static void broadcast_per_thread(const op_arg& arg, const void *value, int max_threads) {
+    int units = arg.size / arg.dim / sizeof(T);
+    int blocks = std::min((max_threads + 255) / 256, 1024);
+    broadcast_kernel<<<blocks, 256, 0, gpu_stream>>>(
+        (T *) arg.data_d, (const T *) value, arg.dim, units, max_threads);
+    cutilSafeCall(gpuPeekAtLastError());
+}
+
+static void init_per_thread(const op_arg& arg, char *value, int max_threads) {
+    if (arg.size == 0 || max_threads == 0) return;
+    if (!starts_from_host(arg)) {
+        cutilSafeCall(gpuMemsetAsync(arg.data_d, 0, (size_t) arg.size * max_threads,
+                                     gpu_stream));
+        return;
+    }
+
+    cutilSafeCall(gpuMemcpyAsync(value, arg.data, arg.size, gpuMemcpyHostToDevice,
+                                  gpu_stream));
+    int width = arg.size / arg.dim;
+    if (width % 8 == 0)      broadcast_per_thread<uint64_t>(arg, value, max_threads);
+    else if (width % 4 == 0) broadcast_per_thread<uint32_t>(arg, value, max_threads);
+    else if (width % 2 == 0) broadcast_per_thread<uint16_t>(arg, value, max_threads);
+    else                     broadcast_per_thread<uint8_t>(arg, value, max_threads);
+}
+
 template<typename T, typename F, typename HF>
 static void reduce_simple(F op, HF host_op, op_arg *arg, int nelems, int max_threads) {
     device_result.ensure_capacity(arg->dim * sizeof(T));
 
     size_t required_temp_storage_size = 0;
-    op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems);
+    cutilSafeCall(op(NULL, required_temp_storage_size, (T *) arg->data_d, (T *) device_result.data, nelems));
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < arg->dim; ++d)
-        op(device_temp_storage.data, device_temp_storage.size,
-            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems);
+        cutilSafeCall(op(device_temp_storage.data, device_temp_storage.size,
+            (T *) arg->data_d + d * max_threads, (T *) device_result.data + d, nelems));
 
     std::vector<T> result(arg->dim);
 
@@ -132,14 +183,14 @@ static void reduce_info(F op, HF host_op, op_arg *args, int index,
     device_result.ensure_capacity(required_result_size);
 
     size_t required_temp_storage_size = 0;
-    op(NULL, required_temp_storage_size, (T *) args[index].data_d,
-       (cub::KeyValuePair<int, T> *) device_result.data, nelems);
+    cutilSafeCall(op(NULL, required_temp_storage_size, (T *) args[index].data_d,
+       (cub::KeyValuePair<int, T> *) device_result.data, nelems));
 
     device_temp_storage.ensure_capacity(required_temp_storage_size);
 
     for (int d = 0; d < args[index].dim; ++d)
-        op(device_temp_storage.data, device_temp_storage.size, (T *) args[index].data_d + d * max_threads,
-           (cub::KeyValuePair<int, T> *) device_result.data + d, nelems);
+        cutilSafeCall(op(device_temp_storage.data, device_temp_storage.size, (T *) args[index].data_d + d * max_threads,
+           (cub::KeyValuePair<int, T> *) device_result.data + d, nelems));
 
     std::vector<cub::KeyValuePair<int, T>> result(args[index].dim);
     cutilSafeCall(gpuMemcpyAsync(result.data(), device_result.data, required_result_size, gpuMemcpyDeviceToHost, gpu_stream));
@@ -206,14 +257,16 @@ cub_reduction_wrap(ArgMax, KeyValuePair<T>)
 #define reduce_arg(T, op, op2, host_op) reduce_arg2<T>(op<T>, op2<T>, host_op<T>, \
                                                        args, i, nargs, nelems, max_threads)
 
-static bool processDeviceGblReductions(op_arg *args, int nargs, int nelems, int max_threads) {
+static bool processDeviceGblReductions(op_arg *args, int nargs, int nelems,
+                                       int max_threads,
+                                       bool use_gbl_inc_atomics) {
     bool needs_sync = false;
 
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL) continue;
 
-        if (gbl_inc_atomic && args[i].acc == OP_INC) {
+        if (use_gbl_inc_atomics && args[i].acc == OP_INC) {
             cutilSafeCall(gpuMemcpyAsync(args[i].data, args[i].data_d,
                           args[i].size * sizeof(char),
                           gpuMemcpyDeviceToHost, gpu_stream));
@@ -318,16 +371,21 @@ void op_put_all_cuda(int nargs, op_arg *args) {
   }
 }
 
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
+// on_host: per argument, whether the kernel has it from the host side.
+void prepareDeviceGblsWithPolicy(op_arg *args, int nargs, int max_threads,
+                                 bool use_gbl_inc_atomics,
+                                 const unsigned char *on_host) {
     size_t required_size = 0;
 
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
-        if (needs_per_thread_storage(args[i])) {
+        if (needs_per_thread_storage(args[i], use_gbl_inc_atomics)) {
             required_size += align(args[i].size * max_threads * sizeof(char));
-        } else if (needs_device_storage(args[i])) {
+            if (starts_from_host(args[i]))
+                required_size += align(args[i].size * sizeof(char));
+        } else if (needs_device_storage(args[i], on_host[i] != 0)) {
             required_size += align(args[i].size * sizeof(char));
         }
     }
@@ -339,11 +397,19 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
         if (opt_disabled(args[i], args)) continue;
         if (args[i].argtype != OP_ARG_GBL && args[i].argtype != OP_ARG_INFO) continue;
 
-        if (needs_per_thread_storage(args[i])) {
+        if (needs_per_thread_storage(args[i], use_gbl_inc_atomics)) {
             args[i].data_d = allocated;
-            // op_printf("Assigned per-thread storage for arg %d at device address %p\n", i, args[i].data_d);
             allocated += align(args[i].size * max_threads * sizeof(char));
-        } else if (needs_device_storage(args[i])) {
+            // An info argument's copies are written by the kernel.
+            if (args[i].argtype != OP_ARG_GBL) continue;
+
+            char *value = nullptr;
+            if (starts_from_host(args[i])) {
+                value = allocated;
+                allocated += align(args[i].size * sizeof(char));
+            }
+            init_per_thread(args[i], value, max_threads);
+        } else if (needs_device_storage(args[i], on_host[i] != 0)) {
             args[i].data_d = allocated;
             allocated += align(args[i].size * sizeof(char));
 
@@ -355,32 +421,59 @@ void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
     }
 }
 
-int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
-    if (OP_cuda_reductions_mib < 0) return INT32_MAX;
-
-    size_t reduction_bytes_per_thread = 0;
+size_t reductionBytesPerThread(op_arg *args, int nargs, bool use_gbl_inc_atomics) {
+    size_t bytes = 0;
     for (int i = 0; i < nargs; ++i) {
         if (opt_disabled(args[i], args)) continue;
-        if (!needs_per_thread_storage(args[i])) continue;
+        if (!needs_per_thread_storage(args[i], use_gbl_inc_atomics)) continue;
         if (args[i].acc == OP_WORK) continue;
 
-        reduction_bytes_per_thread += args[i].size * sizeof(char);
+        bytes += args[i].size * sizeof(char);
     }
+    return bytes;
+}
 
-    if (reduction_bytes_per_thread == 0) return INT32_MAX;
+int blockLimitForReductions(size_t bytes_per_thread, int block_size) {
+    if (OP_cuda_reductions_mib < 0 || bytes_per_thread == 0) return INT32_MAX;
 
+    size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
+    return std::max(max_total_reduction / ((size_t) block_size * bytes_per_thread), 1UL);
+}
+
+int getBlockLimitWithPolicy(op_arg *args, int nargs, int block_size,
+                            const char *name, bool use_gbl_inc_atomics) {
+    if (OP_cuda_reductions_mib < 0) return INT32_MAX;
+
+    size_t reduction_bytes_per_thread = reductionBytesPerThread(args, nargs, use_gbl_inc_atomics);
     if (reduction_bytes_per_thread > 8 * 1024)
         op_printf("Warning: kernel %s needs %zu reduction bytes per thread\n", name, reduction_bytes_per_thread);
 
-    size_t max_total_reduction = OP_cuda_reductions_mib * 1024 * 1024;
-    return std::max(max_total_reduction / ((size_t) block_size * reduction_bytes_per_thread), 1UL);
+    return blockLimitForReductions(reduction_bytes_per_thread, block_size);
 }
 
-bool processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
-    bool needs_red_sync = processDeviceGblReductions(args, nargs, nelems, max_threads);
+bool processDeviceGblsWithPolicy(op_arg *args, int nargs, int nelems,
+                                 int max_threads,
+                                 bool use_gbl_inc_atomics) {
+    bool needs_red_sync = processDeviceGblReductions(
+        args, nargs, nelems, max_threads, use_gbl_inc_atomics);
     bool needs_rw_sync = processDeviceGblRWs(args, nargs);
 
     return needs_red_sync || needs_rw_sync;
+}
+
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads,
+                       const unsigned char *on_host) {
+    prepareDeviceGblsWithPolicy(args, nargs, max_threads, gbl_inc_atomic, on_host);
+}
+
+int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
+    return getBlockLimitWithPolicy(args, nargs, block_size, name,
+                                   gbl_inc_atomic);
+}
+
+bool processDeviceGbls(op_arg *args, int nargs, int nelems, int max_threads) {
+    return processDeviceGblsWithPolicy(args, nargs, nelems, max_threads,
+                                       gbl_inc_atomic);
 }
 
 void setGblIncAtomic(bool enable) {
@@ -390,4 +483,3 @@ void setGblIncAtomic(bool enable) {
 #ifdef __cplusplus
 }
 #endif
-

@@ -36,7 +36,7 @@
 
 #include <mpi.h>
 
-#include <op_gpu_shims.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/env.h>
@@ -74,6 +74,7 @@ static void init_parts(int argc, char **argv, int diags, MPI_Comm world, MPI_Com
   op_renumber_init();
 
   cutilDeviceInit(argc, argv);
+  op::rt::init_gpu();
   op_gpu_direct_init();
   op_mpi_halo_exchanges_init();
   op::env::finish();

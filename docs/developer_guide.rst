@@ -30,7 +30,7 @@ Execution Plans
 
 Because GPU execution is driven by data residency in graphics memory, the blocking for each parallel loop can be chosen independently for each loop, unlike in MPI where repartitioning is expensive.  Inspired by FFTW, OP2 constructs for each parallel loop an execution **plan** — a customised blocking for the GPU that makes optimum use of the shared memory on each streaming multiprocessor (SM), given the precise memory requirements of that loop.
 
-For *indirect loops* (loops that access datasets indirectly through a mapping), data conflicts on ``OP_INC`` arguments are resolved using **hardware atomics** (``atomicAdd``) by default.  Each thread computes its increment into a thread-local accumulator and then atomically adds it to global memory — eliminating the need for any synchronisation between threads.  This is the default strategy for all GPU targets (``cuda``, ``hip``, ``c_cuda``, ``c_hip``) in the v2 translator.
+For *indirect loops* (loops that access datasets indirectly through a mapping), the legacy GPU targets (``cuda_legacy``, ``hip_legacy``) resolve data conflicts on ``OP_INC`` arguments using **hardware atomics** (``atomicAdd``) by default.  Each thread computes its increment into a thread-local accumulator and then atomically adds it to global memory — eliminating the need for any synchronisation between threads.
 
 An alternative **two-level colouring** strategy (``color2`` mode) is also available for cases where atomic operations are undesirable:
 
@@ -39,7 +39,7 @@ An alternative **two-level colouring** strategy (``color2`` mode) is also availa
 
 The strategy is selected at code-generation time; the default is ``atomics=True, color2=False``.
 
-The OpenMP target (``openmp``) instead generates a body for every strategy a loop can run and chooses among them at run time, as the next section describes.
+The JIT GPU targets (``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``) and the OpenMP ones (``openmp``, ``openmp_f2c``) instead generate a kernel for every strategy a loop can run and choose among them at run time, as the next section describes.
 
 Renumbering
 ~~~~~~~~~~~
@@ -49,7 +49,7 @@ Breaking the execution set into contiguous blocks is good for direct datasets (t
 Loop Strategies
 ---------------
 
-The ``openmp`` target runs each loop through a layer of its own, in four parts (headers in ``op2/include``, sources under ``op2/src`` in the same directories; ``op2/include/README.md`` lists every header):
+The ``cuda``, ``hip``, ``cuda_f2c``, ``hip_f2c``, ``openmp`` and ``openmp_f2c`` targets run each loop through a layer of its own, in four parts (headers in ``op2/include``, sources under ``op2/src`` in the same directories; ``op2/include/README.md`` lists every header):
 
 ``loop/``
     Backend-neutral control.  A loop's *ladder* holds its strategies in order, runs the first that is enabled and ready for a call's *configuration* (its set, run size and arguments), and falls back to the last.  The *autotuner* times every candidate for a configuration under ``OP_AUTOTUNE``.  The JIT's policy decides when a kernel is specialised on the values a loop's parameters take and which stay at run time, and caches the built kernels.  A strategy's offline and JIT kernels are two *candidates*: its backend estimates their cost, and the ladder orders them from those estimates alone, so hardware facts stay in the backends; a JIT kernel still building passes the call to the next candidate.  The tuner times every candidate once the JIT's parameter modes for the configuration have settled.
@@ -57,19 +57,19 @@ The ``openmp`` target runs each loop through a layer of its own, in four parts (
 ``plan/``
     Algorithms with no device knowledge: the set colouring, the chunks of a call's sections and their targets, coloured batches and the wavefront order, and the staging of a chunk's targets in scratch slots.
 
-``cpu/``
-    The OpenMP *backend*: it composes the planning blocks under its own limits and encodings (``op2/rt/cpu/chunk_plan.h``), declares its strategy families and their axes as ``op_init`` runs, and runs the kernels over host threads.
+``gpu/``, ``cpu/``
+    The *backends*: each composes the planning blocks under its own limits and encodings (``op2/rt/gpu/chunk_plan.h``, ``op2/rt/cpu/chunk_plan.h``), declares its strategy families and their axes as ``op_init`` runs, and launches the kernels, compiling JIT ones with NVRTC or hipRTC (GPU) or running host threads (CPU).
 
 ``kernel/``
     What a translated kernel compiles against, offline or JIT: ``prelude.h`` (the pointer and array wrappers and the Fortran intrinsics), ``inc.h`` (the increments and the hooks a kernel is instantiated with, ``PlainInc`` and ``AtomicInc``) and ``staging.h`` (the chunked strategies' staging helpers).
 
-The translator emits, per loop, the translated kernel once; a body per strategy; and a registration of every valid strategy and its argument groups; the runtime does the rest.  A kernel that takes an indirect ``OP_INC`` argument is a template over its increment hook, ``op2_inc``, as is each helper the argument reaches: each increment of the argument becomes an ``op2_inc::add`` call, and each strategy's body instantiates the kernel with its hook, in place or atomic.
+The translator emits, per loop, the translated kernel once, and once more as the JIT's text; a wrapper per strategy (the chunked ones as JIT source only); and a registration of every valid strategy, its argument groups and the parameters the JIT may specialise on; the runtime does the rest.  A kernel that takes an indirect ``OP_INC`` argument is a template over its increment hook, ``op2_inc``, as is each helper the argument reaches: each increment of the argument becomes an ``op2_inc::add`` call, and each strategy's wrapper instantiates the kernel with its hook, in place or atomic.
 
 Terms that mean more than one thing elsewhere:
 
-* **backend**: in this layer, the code under ``cpu/``; the halo exchanges' *transport* (MPI with host staging or GPU-direct) is separate.
-* **variant**: a build of an application for one target (``airfoil_openmp``, ``airfoil_mpi_genseq``), as the build systems use it; the autotuner instead tries *candidates*, a strategy (one value of each of its family's axes) with one of its kernels.
-* **strategy** / **family**: what ``OP_STRATEGY`` and ``OP_<STRATEGY>`` name (``chunk_atomics``), and the user documentation calls a strategy, is a *family* in the code; the family's strategies are its points on its axes (``chunk_atomics=on;chunk_size=256``).
+* **backend**: in this layer, the device code under ``gpu/`` or ``cpu/``; the halo exchanges' *transport* (MPI with host staging or GPU-direct) is separate.
+* **variant**: a build of an application for one target (``airfoil_cuda``, ``airfoil_mpi_genseq``), as the build systems use it; the autotuner instead tries *candidates*, a strategy (one value of each of its family's axes) with one of its kernels.
+* **strategy** / **family**: what ``OP_STRATEGY`` and ``OP_<STRATEGY>`` name (``chunk_atomics``), and the user documentation calls a strategy, is a *family* in the code; the family's strategies are its points on its axes (``chunk_atomics=on;block_size=64;singles=off``).
 
 Plan Construction (``op_plan_core``)
 --------------------------------------
@@ -253,9 +253,9 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
    * - Argument
      - Effect
    * - ``OP_BLOCK_SIZE=<n>``
-     - CUDA/HIP thread-block size override.
+     - Thread-block size of the legacy targets (``cuda_legacy``, ``hip_legacy``); the strategy targets take ``OP_BLOCK_SIZES`` from the environment (see :ref:`strategies`).
    * - ``OP_PART_SIZE=<n>``
-     - Partition size (mini-partition element count) override.
+     - Mini-partition size of the legacy targets' ``op_plan``; the host's chunked strategies take ``OP_CHUNK_SIZES``, and the GPU's chunk a block's elements.
    * - ``OP_CACHE_LINE_SIZE=<n>``
      - Cache line size assumption used in ``op_plan`` construction.
    * - ``OP_NO_REALLOC``

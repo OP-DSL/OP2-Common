@@ -582,29 +582,6 @@ def rewriteIncrements(
                 rewriter.update(span, lambda _, text=text: text)
 
 
-def insertArgGblStrides(
-    entity: Entity,
-    rewriter: Rewriter,
-    app: Application,
-    loop: OP.Loop,
-    stride: Callable[[int], str],
-    skip: Optional[Callable[[OP.ArgDat], bool]] = None,
-) -> None:
-
-    if not isinstance(entity, Function):
-        return
-
-    for arg_idx in range(len(loop.args)):
-        arg = loop.args[arg_idx]
-        if not isinstance(arg, OP.ArgGbl):
-            continue
-
-        if skip is not None and skip(arg):
-            continue
-
-        insertStride(entity.ast, rewriter, entity.parameters[arg_idx], 0, False, stride)
-
-
 def insertStride(
     ast: Cursor, rewriter: Rewriter, param: str, id: int, is_vec: bool, stride: Callable[[int], str]
 ) -> None:

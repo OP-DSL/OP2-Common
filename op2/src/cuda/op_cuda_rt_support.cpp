@@ -43,8 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <op_gpu_shims.h>
-#include <op2/env.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <op_lib_c.h>
 #include <op_lib_core.h>
@@ -316,11 +315,6 @@ void deviceSync() {
 void cutilDeviceInit(int argc, char **argv) {
   (void)argc;
   (void)argv;
-  // Read by the c_cuda and c_hip kernels' JIT (op_f2c_helpers.h), in the
-  // generated code.
-  for (const char *variable : {"OP_JIT_ENABLE", "OP_JIT_DEBUG", "OP_JIT_SEQ_COMPILE",
-                               "OP_JIT_MAX_THREADS"})
-    op::env::known(variable);
   int deviceCount;
   cutilSafeCall(gpuGetDeviceCount(&deviceCount));
   if (deviceCount == 0) {
@@ -339,7 +333,7 @@ void cutilDeviceInit(int argc, char **argv) {
   if (OP_hybrid_gpu) {
     cutilSafeCall(gpuFree(test));
 
-    cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
+    // No L1-preferring cache config: it starves kernels staging in shared memory.
 
     int deviceId = -1;
     cutilSafeCall(gpuGetDevice(&deviceId));

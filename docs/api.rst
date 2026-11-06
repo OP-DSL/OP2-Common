@@ -305,9 +305,9 @@ Parallel Loops
    - :c:data:`OP_INC`: Increment or global reduction to compute a sum.
 
    .. note::
-      A kernel may only increment an indirect :c:data:`OP_INC` argument: ``p[i] += e``, ``p[i] -= e``, ``++p[i]``, ``p[i]--`` or ``p[i] = p[i] + e`` (``*p`` for ``p[0]``), each a statement of its own, or pass it to a helper function that does the same. The C++ ``openmp`` target applies each increment through the loop's execution strategy and cannot translate any other use, such as an assignment or a read; declare such an argument :c:data:`OP_RW` or :c:data:`OP_WRITE` instead.
+      A kernel may only increment an indirect :c:data:`OP_INC` argument: ``p[i] += e``, ``p[i] -= e``, ``++p[i]``, ``p[i]--`` or ``p[i] = p[i] + e`` (``*p`` for ``p[0]``), each a statement of its own, or pass it to a helper function that does the same. The ``openmp``, ``cuda``, ``hip``, ``openmp_f2c``, ``cuda_f2c`` and ``hip_f2c`` targets apply each increment through the loop's execution strategy and cannot translate any other use, such as an assignment or a read; declare such an argument :c:data:`OP_RW` or :c:data:`OP_WRITE` instead.
 
-      The C++ ``openmp`` target passes every data and global argument as an ``op::rt::kernel::Ptr``, which carries its stride (the layout, and for a reduction the thread's copy). A kernel may index one (``p[i]``), dereference it (``*p``) or pass it to a helper function, which may take a local array at another call; pointer arithmetic, taking an element's address, holding it in a local pointer, passing it to a library function or testing it against null cannot be translated.
+      The C++ ``openmp``, ``cuda`` and ``hip`` targets pass every data and global argument as an ``op::rt::kernel::Ptr``, which carries its stride (the layout, and for a reduction the thread's copy). A kernel may index one (``p[i]``), dereference it (``*p``) or pass it to a helper function, which may take a local array at another call; pointer arithmetic, taking an element's address, holding it in a local pointer, passing it to a library function or testing it against null cannot be translated.
 
    The **idx** parameter accepts both positive values to specify a single per-element map index, where the kernel is passed a single dimension array of data, or negative values to specify a range of mapping indicies leading to the kernel being passed a two-dimensional array of data. If a negative index is provided the first **-idx** mapping indicies are provided to the kernel.
 
@@ -357,7 +357,7 @@ Parallel Loops
    :param ref: The position of that minimum or maximum's :c:func:`op_arg_gbl()` among the loop's arguments, counting from 0 (from 1 in Fortran).
 
    .. warning::
-      This routine is only valid when used in conjunction with :c:func:`op_arg_gbl()` with :c:data:`OP_MIN` or :c:data:`OP_MAX` access types. The C++ ``cuda`` and ``hip`` targets reject a loop with this argument.
+      This routine is only valid when used in conjunction with :c:func:`op_arg_gbl()` with :c:data:`OP_MIN` or :c:data:`OP_MAX` access types. The C++ ``cuda_legacy`` and ``hip_legacy`` targets reject a loop with this argument.
 
 HDF5 I/O
 ^^^^^^^^
@@ -575,7 +575,7 @@ The following environment variables can be set at run time to control OP2 behavi
      - Description
    * - ``OP_AUTO_SOA``
      - Any value.  For the translator, the same as ``--force_soa``: every dataset is translated as SoA.  At run time (or as an ``op_init`` argument), the GPU backends store every dataset of dimension above 1 as SoA, as ``op_init_soa`` does.
-   * - ``OP_STRATEGY``, ``OP_<STRATEGY>``, ``OP_CHUNK_*``
+   * - ``OP_STRATEGY``, ``OP_<STRATEGY>``, ``OP_BLOCK_SIZES``, ``OP_CHUNK_*``
      - Which execution strategy a loop runs and how: see :ref:`strategies`.
    * - ``OP_AUTOTUNE``, ``OP_AUTOTUNE_*``
      - Timing every strategy and running the fastest: see :ref:`strategies`.
@@ -589,8 +589,28 @@ The following environment variables can be set at run time to control OP2 behavi
      - A file of regular expressions, one per line: a Fortran loop whose name matches none runs its host fallback instead of its device kernel.
    * - ``OP_TIME_THREADS``
      - Read at *translation* time, by the legacy C translator's OpenMP generator (``translator/c``) only: set, it times each OpenMP thread, so ``op_timings_to_csv`` breaks its output down per thread (and per thread per rank for MPI+OpenMP).  ``op_init`` accepts it without a warning.
+   * - ``OP_JIT_LEVEL``
+     - JIT-compiled (``cuda`` / ``hip``, ``cuda_f2c`` / ``hip_f2c``) kernels specialised on their parameters. ``0`` builds none and runs the offline kernels. ``1`` bakes in the structural parameters (block size, strides, dimensions) and the constants, and gives ``OP_READ`` globals at run time; a constant that takes more than ``OP_JIT_MAX_VALUES`` values moves to run time. ``2`` (default) also bakes in an ``OP_READ`` global that takes at most ``OP_JIT_MAX_VALUES`` values in 32 calls. Replaces ``OP_JIT_ENABLE``.
+   * - ``OP_JIT_FORCE``
+     - Set to ``1`` to specialise every kernel; by default only those whose offline kernel uses more registers than ``OP_JIT_MIN_REGISTERS`` (32), or that have no offline kernel.
+   * - ``OP_JIT_MIN_REGISTERS``
+     - Integer, default 32. A kernel whose offline version uses more registers than this has its specialised kernel offered first.
+   * - ``OP_JIT_MIN_CALLS``
+     - Integer, default 8. Calls with the same baked values before their kernel's build starts.
    * - ``OP_JIT_MAX_THREADS``
-     - Integer. Caps the maximum number of OpenMP threads used inside JIT-compiled (``c_cuda`` / ``c_hip``) host loops. Useful for tuning thread counts independently of ``OMP_NUM_THREADS``.
+     - Integer. Kernel builds running at once on background threads; 16 with CUDA 12.3 or later, else 4.  hipRTC builds one kernel at a time per process whatever this is.
+   * - ``OP_JIT_SEQ_COMPILE``
+     - Set to ``1`` to build each kernel on the calling thread when it is due, so it runs from that call on.
+   * - ``OP_JIT_DEBUG``
+     - Set to ``1`` to print each build and each parameter that moves between baked in and run time, and to synchronise after every launch.
+   * - ``OP_JIT_MAX_VALUES``
+     - Integer, default 8. Values a baked parameter may take for one loop configuration; its next value moves it to run time for the rest of the run, so each parameter costs at most this many kernel builds. Also the most values an ``OP_READ`` global may take in 32 calls to be baked in.
+   * - ``OP_JIT_MAX_GBL_BYTES``, ``OP_JIT_MAX_CONST_BYTES``
+     - Integers, default 4096 and 16384. The largest ``OP_READ`` global and constant baked in; larger ones stay at run time.
+   * - ``OP_JIT_RUNTIME_PARAMS``, ``OP_JIT_CONSTANT_PARAMS``
+     - Comma-separated parameter names, each ``name`` or ``loop:name`` (as ``OP_JIT_DEBUG`` and the JIT summary print them), always given at run time or always baked in.
+   * - ``OP_JIT_REPORT``
+     - A file path: at ``op_profile_output`` and ``op_exit``, rank 0 prints a summary of the specialised kernels, and each rank writes a CSV row per loop configuration with the parameters its kernels bake in, give at run time, and moved (see :ref:`perf`).
    * - ``OP_DISPLAY_ENV``
      - Set to ``1`` (or ``on``) to print, at ``op_init``, every variable OP2 reads with the value in effect, marking those the environment set.
    * - ``OP_FALLBACK_MODE``
@@ -774,13 +794,13 @@ Fortran application variants are prefixed with ``f_`` in the Make build system:
      - Sequential Fortran build.
    * - ``f_openmp``
      - OpenMP multi-threaded Fortran build.
-   * - ``f_cuda``
-     - Native CUDA Fortran build (requires NVHPC).
-   * - ``f_c_seq``
+   * - ``f_cuda_legacy``
+     - Native CUDA Fortran build from the legacy templates (requires NVHPC).
+   * - ``f_seq_f2c``
      - Fortran + C++ sequential build.
-   * - ``f_c_cuda``
+   * - ``f_cuda_f2c``
      - Fortran + C CUDA JIT build (recommended GPU target).
-   * - ``f_c_hip``
+   * - ``f_hip_f2c``
      - Fortran + C HIP JIT build.
    * - ``f_mpi_<variant>``
      - Distributed-memory MPI variant of any of the above.

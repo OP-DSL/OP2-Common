@@ -639,13 +639,13 @@ Running ``make`` with a build target from the ``/step7`` directory (or the appli
    * - ``openmp``
      - Code-generated multi-threaded CPU build using OpenMP.
    * - ``cuda``
-     - Code-generated NVIDIA GPU build (AOT compiled by ``nvcc``).
-   * - ``hip``
-     - Code-generated AMD GPU build (AOT compiled by ``hipcc``).
-   * - ``c_cuda``
      - Code-generated NVIDIA GPU build with JIT compilation (via NVRTC).
-   * - ``c_hip``
+   * - ``hip``
      - Code-generated AMD GPU build with JIT compilation (via HIP RTC).
+   * - ``cuda_legacy``
+     - NVIDIA GPU build from the legacy templates (AOT compiled by ``nvcc``).
+   * - ``hip_legacy``
+     - AMD GPU build from the legacy templates (AOT compiled by ``hipcc``).
    * - ``mpi_<variant>``
      - Distributed-memory MPI version of any of the above (e.g. ``mpi_cuda``).
    * - ``all``
@@ -657,13 +657,13 @@ For example, to build just the JIT CUDA variant and its MPI counterpart:
 
 .. code-block:: shell
 
-   make c_cuda mpi_c_cuda
+   make cuda mpi_cuda
 
 Targets that require hardware or libraries that were not found at configuration time are silently skipped.  The first thing printed by any ``make`` invocation is the list of variants that will actually be built, e.g.:
 
 .. code-block:: text
 
-   Buildable app variants for airfoil_step7: seq genseq openmp c_cuda mpi_seq mpi_genseq mpi_openmp mpi_c_cuda
+   Buildable app variants for airfoil_step7: seq genseq openmp cuda mpi_seq mpi_genseq mpi_openmp mpi_cuda
 
 This will build all the currently supported parallel versions for your system, provided that the relevant OP2 back-end libraries have been built.
 
@@ -702,16 +702,16 @@ The following parallel versions will be generated from the code generator. These
   #On 4 mpi procs with each proc running 8 OpenMP threads
   export OMP_NUM_THREADS=8; $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_openmp OP_PART_SIZE=256
 
-(4) Code-gen CUDA, JIT-compiled through NVRTC, and MPI + Code-gen CUDA
+(4) Code-gen CUDA and MPI + Code-gen CUDA, with a thread-block size of 192, which the build takes from the environment
 
 .. code-block:: bash
 
   #On a single GPU
-  ./airfoil_c_cuda
+  OP_BLOCK_SIZES=192 ./airfoil_cuda
   #On 4 mpi procs, each proc having a GPU
-  $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_c_cuda
+  OP_BLOCK_SIZES=192 $MPI_INSTALL_PATH/bin/mpirun -np 4 ./airfoil_mpi_cuda
 
-The HIP build (``airfoil_c_hip``) runs the same way. Airfoil has no ``cuda`` or ``hip`` build: its ``update`` loop reports where an error occurs through :c:func:`op_arg_info`, which those targets don't support.
+The HIP build (``airfoil_hip``) runs the same way. Airfoil has no ``cuda_legacy`` or ``hip_legacy`` build: its ``update`` loop reports where an error occurs through :c:func:`op_arg_info`, which those targets don't support.  See :ref:`strategies` for how the JIT builds choose and tune each loop's execution strategy.
 
 
 Optimizations
