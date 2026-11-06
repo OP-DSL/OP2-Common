@@ -78,6 +78,20 @@ set(_op2_rt_cpu_srcs
     "${_src}/rt/cpu/op_cpu_chunk_plan.cpp"
 )
 
+# The CUDA and HIP backend's runtime (src/rt/gpu): its options, executor,
+# strategies, heuristics, JIT mechanism, and chunk plans and their encoding.
+# What touches the application's kernels and symbols is the generated code's
+# (op2/rt/kernel/gpu/offline.h).
+set(_op2_rt_gpu_srcs
+    "${_src}/rt/gpu/op_gpu_init.cpp"
+    "${_src}/rt/gpu/op_gpu_executor.cpp"
+    "${_src}/rt/gpu/op_gpu_strategy.cpp"
+    "${_src}/rt/gpu/op_gpu_heuristics.cpp"
+    "${_src}/rt/gpu/op_gpu_jit.cpp"
+    "${_src}/rt/gpu/op_gpu_kernel.cpp"
+    "${_src}/rt/gpu/op_gpu_chunk_plan.cpp"
+    "${_src}/rt/gpu/op_gpu_chunk_encode.cpp"
+)
 
 # Core sources for every library with a backend; op_profile is here because
 # all of them profile.
@@ -105,6 +119,7 @@ set(_op2_backend_openmp_srcs
 # Single-node CUDA backend, shared verbatim by CUDA and HIP (HIP promotes the
 # .cu to LANGUAGE HIP via _op2_mark_cu_as_hip() and defines OP2_HIP).
 set(_op2_backend_cuda_srcs
+    ${_op2_rt_gpu_srcs}
     "${_src}/cuda/op_cuda_decl.cpp"
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
@@ -138,6 +153,7 @@ set(_op2_backend_mpi_cpu_overlay_srcs
 )
 
 set(_op2_backend_mpi_cuda_overlay_srcs
+    ${_op2_rt_gpu_srcs}
     "${_src}/cuda/op_cuda_rt_support.cpp"
     "${_src}/cuda/op2_cuda_rt_wrappers.cu"
     "${_src}/mpi/op_mpi_cuda_decl.cpp"
@@ -230,17 +246,24 @@ function(_op2_configure_target tgt)
     endif()
 endfunction()
 
-# Generated kernels call constexpr host helpers from __global__ functions,
-# which nvcc rejects without --expt-relaxed-constexpr.
+# Application kernels may call constexpr host functions from __global__
+# functions, which nvcc rejects without --expt-relaxed-constexpr.
+# The JIT builds through NVRTC (src/rt/gpu/op_gpu_jit.cpp), and loads and
+# launches what it built through the driver API (src/rt/gpu/op_gpu_kernel.cpp).
 function(_op2_configure_cuda_target tgt)
     target_compile_features(${tgt} PUBLIC cuda_std_20)
     target_compile_options(${tgt} PUBLIC
         $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:--expt-relaxed-constexpr>)
+    target_link_libraries(${tgt} PRIVATE CUDA::nvrtc CUDA::cuda_driver)
 endfunction()
 
-# HIP dialect - same C++ standard requirement, no extra flags.
+# HIP dialect - same C++ standard requirement, no extra flags.  The JIT builds
+# through hipRTC, whose module API is in the HIP runtime.
 function(_op2_configure_hip_target tgt)
     target_compile_features(${tgt} PUBLIC hip_std_20)
+    if(TARGET hip::hiprtc)
+        target_link_libraries(${tgt} PRIVATE hip::hiprtc)
+    endif()
 endfunction()
 
 function(_op2_configure_fortran_target tgt)
@@ -458,15 +481,18 @@ if(CMAKE_Fortran_COMPILER)
 
     # --- op2_for_openmp ---
     # No source here uses OpenMP - the !$omp directives live in generated
-    # kernels, so this link is a usage requirement, not a build need.
-    if(OpenMP_Fortran_FOUND)
+    # kernels, so this link is a usage requirement, not a build need.  openmp_f2c
+    # links it too, its threads in generated C++, so C++ OpenMP alone will do.
+    if(OpenMP_Fortran_FOUND OR OpenMP_CXX_FOUND)
         add_library(op2_for_openmp
             ${_op2_core_srcs}
             ${_op2_backend_openmp_srcs}
             ${_op2_fortran_base_srcs}
             ${_op2_fortran_cuda_stub_srcs})
         _op2_configure_fortran_target(op2_for_openmp)
-        target_link_libraries(op2_for_openmp PUBLIC OpenMP::OpenMP_Fortran)
+        if(OpenMP_Fortran_FOUND)
+            target_link_libraries(op2_for_openmp PUBLIC OpenMP::OpenMP_Fortran)
+        endif()
         _op2_register_for(op2_for_openmp)
     endif()
 
@@ -633,7 +659,7 @@ foreach(_t IN LISTS _op2_targets_for)
 endforeach()
 
 # include/op2 mirrors op2/include, so one include directory serves the flat
-# headers (<op_seq.h>) and the op2/ tree (<op2/env.h>) alike.
+# headers (<op_seq.h>) and the op2/ tree (<op2/rt/gpu/executor.h>) alike.
 install(DIRECTORY "${_inc}/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/op2"
     FILES_MATCHING

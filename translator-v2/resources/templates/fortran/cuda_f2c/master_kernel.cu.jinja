@@ -1,0 +1,30 @@
+{% import "fortran/abi.jinja" as abi with context %}
+{% if lang.user_consts_module is not none %}
+    {% if target.name == "hip_f2c" %}
+#include "hydra_const_list_c_hip.hip.h"
+    {% else %}
+#include "hydra_const_list_c_cuda.cuh"
+    {% endif %}
+{% endif %}
+
+{% if lang.user_consts_module is none %}
+#include <cstdint>
+
+    {% for const in app.consts() %}
+extern {{const.typ.c()}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+
+    {% for const in app.consts() %}
+[[maybe_unused]] static {% if const.dim > 1 %}__device__{% else %}__constant__{% endif %} {{const.typ.c()}} op2_const_{{const.ptr}}_d{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+
+    {% for const in app.consts() %}
+[[maybe_unused]] static uint64_t op2_const_{{const.ptr}}_hash = 0;
+    {% endfor %}
+
+{% else %}
+// The constants header a specialised kernel includes (jit_embed.h).
+#define OP_KERNEL_JIT_PARAMS "hydra_const_list_params.h"
+
+{% endif %}
+{% include "gpu/master_kernel.jinja" %}

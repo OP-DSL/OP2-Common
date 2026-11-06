@@ -9,6 +9,9 @@
 
 #include "../utility.h"
 
+#include <cstdint>
+#include <cstring>
+
 #define TOL 1e-9
 
 // --- Utility functions ---
@@ -36,6 +39,15 @@ void inc5(const double *dat, double *g) {
   for (int i = 0; i < 5; ++i)
     g[i] += dat[i];
 }
+inline void add3(double *g, const double *v) {
+  for (int i = 0; i < 3; ++i)
+    g[i] += v[i];
+}
+// A global of dimension 3 incremented in a helper, which indexes each
+// thread's copy as the kernel would.
+void inc3_helper(const double *dat, double *g) {
+  add3(g, dat);
+}
 
 void min1(const double *dat, double *g) {
   *g = MIN(*g, *dat);
@@ -51,6 +63,21 @@ void max1(const double *dat, double *g) {
 void max5(const double *dat, double *g) {
   for (int i = 0; i < 5; ++i)
     g[i] = MAX(g[i], dat[i]);
+}
+
+void opt_read5(double *dat, const double *g, const int *on) {
+  for (int i = 0; i < 5; ++i)
+    dat[i] = *on ? g[i] : -1.0;
+}
+
+void read_nonfinite(double *d, float *f, const double *gd, const float *gf) {
+  *d = *gd;
+  *f = *gf;
+}
+
+void opt_read_inc(const double *dat, const double *g, double *sum, const int *on) {
+  if (*on)
+    *sum += *dat + *g;
 }
 
 // --- main ---
@@ -84,6 +111,11 @@ int main(int argc, char **argv) {
 
   op_dat dat_iota1 = op_decl_dat(set, 1, "double", data1.data(), "dat_iota1");
   op_dat dat_iota5 = op_decl_dat(set, 5, "double", data5.data(), "dat_iota5");
+
+  std::vector<double> data_nf_d(local_size, 0.0);
+  std::vector<float> data_nf_f(local_size, 0.0f);
+  op_dat dat_nf_d = op_decl_dat(set, 1, "double", data_nf_d.data(), "dat_nf_d");
+  op_dat dat_nf_f = op_decl_dat(set, 1, "float", data_nf_f.data(), "dat_nf_f");
 
   op_partition("", "", NULL, NULL, NULL);
   
@@ -134,6 +166,23 @@ int main(int argc, char **argv) {
     check(std::abs(g_inc1 - expected) < TOL, 0, "inc1 dat failed");
 
     printf("inc1 passed\n");
+  }
+  {
+    double g_inc3[3] = {0.0, 0.0, 0.0};
+
+    op_par_loop(inc3_helper, "inc3_helper", set,
+              op_arg_dat(dat_iota5, -1, OP_ID, 5, "double", OP_READ),
+              op_arg_gbl(g_inc3, 3, "double", OP_INC));
+
+    double expected[3] = {0.0, 0.0, 0.0};
+    for (int i = 0; i < gbl_size; ++i)
+      for (int d = 0; d < 3; ++d)
+        expected[d] += (double)(i * 5 + d);
+
+    for (int d = 0; d < 3; ++d)
+      check(std::abs(g_inc3[d] - expected[d]) < TOL, d, "inc3_helper failed");
+
+    printf("inc3_helper passed\n");
   }
   {
     double g_inc5[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
@@ -217,6 +266,98 @@ int main(int argc, char **argv) {
     }
 
     printf("max5 passed\n");
+  }
+
+  // --- READ of non-finite values, which a JIT kernel has as constants ---
+  {
+    double g_ninf = -std::numeric_limits<double>::infinity();
+    const uint32_t nan_bits = 0x7fc00123u;
+    float g_nan;
+    std::memcpy(&g_nan, &nan_bits, sizeof(g_nan));
+
+    // Enough calls for the loop to reach its JIT kernel.
+    for (int pass = 0; pass < 12; ++pass)
+      op_par_loop(read_nonfinite, "read_nonfinite", set,
+                op_arg_dat(dat_nf_d, -1, OP_ID, 1, "double", OP_WRITE),
+                op_arg_dat(dat_nf_f, -1, OP_ID, 1, "float", OP_WRITE),
+                op_arg_gbl(&g_ninf, 1, "double", OP_READ),
+                op_arg_gbl(&g_nan, 1, "float", OP_READ));
+
+    std::vector<double> fetched_d(local_size);
+    std::vector<float> fetched_f(local_size);
+    op_fetch_data(dat_nf_d, fetched_d.data());
+    op_fetch_data(dat_nf_f, fetched_f.data());
+    for (int i = 0; i < set->size; ++i) {
+      uint32_t bits;
+      std::memcpy(&bits, &fetched_f[i], sizeof(bits));
+      check(fetched_d[i] == g_ninf && bits == nan_bits, i, "read_nonfinite failed");
+    }
+
+    printf("read_nonfinite passed\n");
+  }
+
+  // --- Optional READ and INC, active then inactive; the inactive READ has no data ---
+  {
+    double g_read = 2.0;
+    double g_sum = 0.0;
+
+    for (int on = 1; on >= 0; --on) {
+      double *g_read_ptr = on ? &g_read : nullptr;
+      op_par_loop(opt_read_inc, "opt_read_inc", set,
+                op_arg_dat(dat_iota1, -1, OP_ID, 1, "double", OP_READ),
+                op_opt_arg_gbl(on, g_read_ptr, 1, "double", OP_READ),
+                op_opt_arg_gbl(on, &g_sum, 1, "double", OP_INC),
+                op_arg_gbl(&on, 1, "int", OP_READ));
+    }
+
+    double expected = (gbl_size - 1) * gbl_size / 2 + gbl_size * g_read;
+    check(std::abs(g_sum - expected) < TOL, 0, "opt_read_inc failed");
+
+    printf("opt_read_inc passed\n");
+  }
+
+  // --- READ of an array over enough passes for its JIT kernel, the value
+  // changing near the end ---
+  {
+    double g[5] = {33.0, 43.0, 53.0, 63.0, 73.0};
+    std::vector<double> fetched(local_size * 5, 0.0);
+    for (int pass = 0; pass < 12; ++pass) {
+      if (pass == 10)
+        for (int d = 0; d < 5; ++d)
+          g[d] += 1.0;
+      op_par_loop(read5, "read5_passes", set,
+                op_arg_dat(dat5, -1, OP_ID, 5, "double", OP_WRITE),
+                op_arg_gbl(g, 5, "double", OP_READ));
+
+      op_fetch_data(dat5, fetched.data());
+      for (int i = 0; i < local_size; ++i)
+        for (int d = 0; d < 5; ++d)
+          check(std::abs(fetched[i * 5 + d] - g[d]) < TOL, i * 5 + d, "read5_passes failed");
+    }
+
+    printf("read5_passes passed\n");
+  }
+
+  // --- Optional READ of an array, inactive then active, each long enough
+  // for its JIT kernel; the inactive one has no data ---
+  {
+    double g[5] = {3.0, 4.0, 5.0, 6.0, 7.0};
+    std::vector<double> fetched(local_size * 5, 0.0);
+    for (int pass = 0; pass < 20; ++pass) {
+      int on = pass >= 10;
+      op_par_loop(opt_read5, "opt_read5", set,
+                op_arg_dat(dat5, -1, OP_ID, 5, "double", OP_WRITE),
+                op_opt_arg_gbl(on, on ? g : nullptr, 5, "double", OP_READ),
+                op_arg_gbl(&on, 1, "int", OP_READ));
+
+      op_fetch_data(dat5, fetched.data());
+      for (int i = 0; i < local_size; ++i)
+        for (int d = 0; d < 5; ++d)
+          check(std::abs(fetched[i * 5 + d] - (on ? g[d] : -1.0)) < TOL, i * 5 + d,
+                "opt_read5 failed");
+    }
+
+    printf("opt_read5 passed\n");
   }
 
   op_profile_end();

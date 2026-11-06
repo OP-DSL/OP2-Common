@@ -69,10 +69,12 @@ int getBlockLimit(op_arg *args, int nargs, int block_size, const char *name) {
     return 1024;
 }
 
-void prepareDeviceGbls(op_arg *args, int nargs, int max_threads) {
+void prepareDeviceGbls(op_arg *args, int nargs, int max_threads,
+                       const unsigned char *on_host) {
     (void) args;
     (void) nargs;
     (void) max_threads;
+    (void) on_host;
 }
 
 bool processDeviceGbls(op_arg *args, int nargs, int nthreads, int max_threads) {

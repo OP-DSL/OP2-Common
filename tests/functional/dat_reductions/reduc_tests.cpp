@@ -11,6 +11,7 @@
 
 #define TOL 1e-9
 #define NN 12
+#define NSPOKE (1 << 19)
 
 // --- Utility functions ---
 void check(bool cond, int idx, int rank, const char *msg) {
@@ -40,6 +41,19 @@ void indirect_dat3_inc(float *n0i, float *n1i, const float *er) {
     n1i[d] += er[d];
   }
 }
+void indirect_dat1_opt_inc(float *n0i, float *n1i, const float *er, const int *on) {
+  if (*on) {
+    *n0i += (*er);
+    *n1i += (*er);
+  }
+}
+// A 16-wide count, whose scratch caps a GPU grid below the spoke count, so
+// a thread runs several spokes.
+void spoke_count(int *ni, int *lanes) {
+  *ni += 1;
+  for (int d = 0; d < 16; ++d)
+    lanes[d] += 1;
+}
 
 // --- main ---
 int main(int argc, char **argv) {
@@ -66,8 +80,21 @@ int main(int argc, char **argv) {
 
   op_dat pn_dat1 = op_decl_dat(nodes, 1, "float", mesh.n_dat1.data(), "pn_dat1");
   op_dat pn_dat1_u = op_decl_dat(nodes, 1, "float", mesh.n_dat1.data(), "pn_dat1_u");
+  op_dat pn_dat1_o = op_decl_dat(nodes, 1, "float", mesh.n_dat1.data(), "pn_dat1_o");
   op_dat pn_dat3 = op_decl_dat(nodes, 3, "float", mesh.n_dat3.data(), "pn_dat3");
   op_dat pn_dat3_u = op_decl_dat(nodes, 3, "float", mesh.n_dat3.data(), "pn_dat3_u");
+
+  // Many spokes onto the nodes, spoke s to node s % nodes.
+  const int nspoke = compute_local_size(NSPOKE, comm_size, my_rank);
+  const int spoke_start = get_local_start(NSPOKE, comm_size, my_rank);
+  std::vector<int> s2n(nspoke);
+  for (int s = 0; s < nspoke; ++s)
+    s2n[s] = (spoke_start + s) % mesh.g_node;
+  std::vector<int> spoke_zeros(mesh.nnode, 0);
+
+  op_set spokes = op_decl_set(nspoke, "spokes");
+  op_map m_s2n = op_decl_map(spokes, nodes, 1, s2n.data(), "spoke_to_node");
+  op_dat pn_spokes = op_decl_dat(nodes, 1, "int", spoke_zeros.data(), "pn_spokes");
 
   op_partition("", "", NULL, NULL, NULL);
 
@@ -111,6 +138,27 @@ int main(int argc, char **argv) {
     printf("indirect_dat1_inc passed [rank %d]\n", my_rank);
   }
 
+  // --- Optional indirect Dat INC DIM=1, active then inactive: one pass, as above ---
+  {
+    for (int on = 1; on >= 0; --on)
+      op_par_loop(indirect_dat1_opt_inc, "indirect_dat1_opt_inc", edges,
+        op_opt_arg_dat(on, pn_dat1_o, 0, m_e2n, 1, "float", OP_INC),
+        op_opt_arg_dat(on, pn_dat1_o, 1, m_e2n, 1, "float", OP_INC),
+        op_arg_dat(pe_dat1,   -1, OP_ID, 1, "float", OP_READ),
+        op_arg_gbl(&on, 1, "int", OP_READ)
+      );
+
+    std::vector<float> fetched(node_size_inc_halo, 0.0);
+    std::vector<float> expected(node_size_inc_halo, 0.0);
+    op_fetch_data(pn_dat1_o, fetched.data());
+    op_fetch_data(pn_dat1_u, expected.data());
+
+    for (int i = 0; i < nodes->size; ++i)
+      check(fetched[i] == expected[i], i, my_rank, "indirect_dat1_opt_inc failed");
+
+    printf("indirect_dat1_opt_inc passed [rank %d]\n", my_rank);
+  }
+
   // --- Indirect Dat INC DIM=3---
   {
     op_par_loop(indirect_dat3_inc, "indirect_dat3_inc", edges,
@@ -150,6 +198,29 @@ int main(int argc, char **argv) {
     }
     
     printf("indirect_dat3_inc passed [rank %d]\n", my_rank);
+  }
+
+  // --- Indirect Dat INC beside a wide Gbl INC ---
+  {
+    int lanes[16] = {0};
+    op_par_loop(spoke_count, "spoke_count", spokes,
+      op_arg_dat(pn_spokes, 0, m_s2n, 1, "int", OP_INC),
+      op_arg_gbl(lanes, 16, "int", OP_INC)
+    );
+
+    std::vector<int> fetched(node_size_inc_halo, 0);
+    op_fetch_data(pn_spokes, fetched.data());
+
+    std::vector<int> expected(node_size_inc_halo, 0);
+    for (int s = 0; s < spokes->size + spokes->exec_size; ++s)
+      expected[m_s2n->map[s]] += 1;
+
+    for (int i = 0; i < nodes->size; ++i)
+      check(fetched[i] == expected[i], i, my_rank, "spoke_count failed");
+    for (int d = 0; d < 16; ++d)
+      check(lanes[d] == NSPOKE, d, my_rank, "spoke_count reduction failed");
+
+    printf("spoke_count passed [rank %d]\n", my_rank);
   }
 
   // --- Direct Dat INC DIM=1 ---
