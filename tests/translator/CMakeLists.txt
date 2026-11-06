@@ -38,7 +38,7 @@ _op2_translator_rejects(template_call seq rejects.cpp "rejects.cpp:[0-9]+:[0-9]+
 _op2_translator_rejects(namespaced seq rejects.cpp "rejects.cpp:[0-9]+:[0-9]+: error: half: kernel functions in a namespace are not supported: helpers" -D NAMESPACED)
 _op2_translator_falls_back(fortran_implied_save c_cuda rejects.F90 "SAVE local s is unsupported" -D IMPLIED_SAVE)
 _op2_translator_rejects(fortran_vector_map c_cuda rejects.F90 "assign_k: vector map arguments are not supported in Fortran" -D VECTOR_MAP)
-_op2_translator_falls_back(fortran_slice_legacy openmp rejects.F90 "slice_k element-wise access incompatible with stride insertion" -D SLICE)
+_op2_translator_falls_back(fortran_slice_legacy openmp_legacy rejects.F90 "slice_k element-wise access incompatible with stride insertion" -D SLICE)
 _op2_translator_test(fortran_slice_f2c OFF c_seq rejects.F90 "of [0-9]+: rejects_[0-9]+_slice_k" -D SLICE -v)
 _op2_translator_rejects(missing_include seq rejects.cpp "'op2_no_such_header.h' file not found" -D MISSING_INCLUDE)
 _op2_translator_test(angle_include OFF seq angle_include.cpp "Translated program 1 of 1" -v)

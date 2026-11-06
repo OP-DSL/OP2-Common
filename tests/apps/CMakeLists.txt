@@ -84,7 +84,7 @@ function(_op2_app_tests name)
                     "-DCOMMAND=${_cmd}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/run_app.cmake")
             set(_env "")
-            if(_variant STREQUAL "openmp")
+            if(_variant MATCHES "^openmp(_legacy)?$")
                 set(_env "OMP_NUM_THREADS=${_op2_app_omp_num_threads}")
             elseif(_variant MATCHES "^c_(cuda|hip)$")
                 # Their JIT builds on threads op_exit does not wait for.

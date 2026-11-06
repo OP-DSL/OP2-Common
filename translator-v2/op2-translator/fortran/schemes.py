@@ -50,18 +50,18 @@ class FortranSeq(Scheme):
 Scheme.register(FortranSeq)
 
 
-class FortranOpenMP(Scheme):
+class FortranOpenMPLegacy(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("openmp")
+    target = Target.get("openmp_legacy")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
     def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         return fv.stridesInsertable(loop, program, app)
 
-    consts_template = Path("fortran/openmp/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/openmp/loop_host.inc.jinja")]
-    master_kernel_templates = [Path("fortran/openmp/master_kernel.F90.jinja")]
+    consts_template = Path("fortran/openmp_legacy/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/openmp_legacy/loop_host.inc.jinja")]
+    master_kernel_templates = [Path("fortran/openmp_legacy/master_kernel.F90.jinja")]
 
     # SIMD lanes sharing a read-write target would lose updates, and an inactive
     # optional argument has no data to copy.
@@ -120,7 +120,7 @@ class FortranOpenMP(Scheme):
         return ftk.writeSource(kernel_entities + simd_kernel_entities + dependencies)
 
 
-Scheme.register(FortranOpenMP)
+Scheme.register(FortranOpenMPLegacy)
 
 
 class FortranCuda(Scheme):
