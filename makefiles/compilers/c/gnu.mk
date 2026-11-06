@@ -41,5 +41,3 @@ ifeq ($(shell uname -s),Darwin)
   endif
 endif
 
-# CONFIG_OMP_OFFLOAD_CXXFLAGS ?=
-CONFIG_CPP_HAS_OMP_OFFLOAD ?= false

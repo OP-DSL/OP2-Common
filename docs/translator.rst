@@ -271,8 +271,6 @@ Available generators:
      - MPI + SIMD vectorisation
    * - ``op2_gen_openacc.py``
      - OpenACC
-   * - ``op2_gen_openmp4.py``
-     - OpenMP 4.0 device offload
 
 Fortran Targets
 ^^^^^^^^^^^^^^^
@@ -304,5 +302,3 @@ Available generators:
      - CUDA variants
    * - ``op2_gen_openacc.py``
      - OpenACC
-   * - ``op2_gen_openmp4.py``
-     - OpenMP 4.0 device offload

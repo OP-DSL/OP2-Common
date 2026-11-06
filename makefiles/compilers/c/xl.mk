@@ -22,6 +22,3 @@ CONFIG_CXXLINK ?= -lc++
 # Available OpenMP features
 CONFIG_OMP_CXXFLAGS ?= -qsmp=omp
 CONFIG_CPP_HAS_OMP ?= true
-
-# CONFIG_OMP_OFFLOAD_CXXFLAGS ?=
-CONFIG_CPP_HAS_OMP_OFFLOAD ?= false
