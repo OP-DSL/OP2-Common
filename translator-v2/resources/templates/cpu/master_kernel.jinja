@@ -1,0 +1,21 @@
+{#- The tail of a CPU master kernel: the runtime and the loops' hosts. -#}
+#include <op2/rt/abi/cpu/descriptor.h>
+#include <op2/rt/abi/cpu/launch.h>
+#include <op2/rt/abi/descriptor.h>
+#include <op2/rt/kernel/cpu/chunk.h>
+#include <op2/rt/kernel/cpu/range.h>
+#include <op2/rt/kernel/cpu/threads.h>
+#include <op2/rt/kernel/inc.h>
+#include <op2/rt/kernel/prelude.h>
+#include <op2/rt/kernel/staging.h>
+#include <op_lib_cpp.h>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+
+{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
+#include "{{abi.loop_include(loop_)}}"
+{% endfor %}
