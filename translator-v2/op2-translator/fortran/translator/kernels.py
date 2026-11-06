@@ -185,15 +185,18 @@ def insertStride(func: Function, param_idx: int, modified: Dict[str, Set[int]], 
         fu.eraseDimensions(func, param)
 
 
+# Rewrite the increments of the args match picks, in func and what it passes
+# them to, as calls: call <call>(target, delta) to a hook the C++ translation
+# defines, or with call None CUDA Fortran's op2_ret = atomicAdd(target, delta).
 def insertAtomicIncs(
     func: Function,
     funcs: List[Function],
     loop: OP.Loop,
     app: Application,
     match: Callable[[OP.Arg], bool],
-    c_api: bool = False
-) -> Dict[str, Set[int]]:
-    modified = {}
+    call: Optional[str] = None,
+) -> None:
+    modified: Dict[str, Set[int]] = {}
 
     for arg_idx in range(len(loop.args)):
         if not match(loop.args[arg_idx]):
@@ -209,9 +212,9 @@ def insertAtomicIncs(
         else:
             raise OpError(f"Error: could not find type of arg while inserting atomics: {loop.args[arg_idx]}")
 
-        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified, typ, c_api)
+        fu.mapParam(func, arg_idx, funcs, insertAtomicInc, modified, typ, call)
 
-    if c_api:
+    if call is not None:
         return
 
     for func_name in modified.keys():
@@ -224,33 +227,55 @@ def insertAtomicIncs(
         spec.children.append(f2003.Type_Declaration_Stmt("integer(4) :: op2_ret"))
 
 
-def insertAtomicInc(func: Function, param_idx: int, modified: Dict[str, Set[int]], typ: OP.Type, c_api: bool) -> None:
+def insertAtomicInc(
+    func: Function, param_idx: int, modified: Dict[str, Set[int]], typ: OP.Type, call: Optional[str]
+) -> None:
     if param_idx in modified.get(func.name, set()):
         return
 
-    _, replaced = insertAtomicInc2(func.ast, func.parameters[param_idx], typ, c_api)
-
-    if not replaced:
-        return
-
-    if func.name not in modified:
-        modified[func.name] = {param_idx}
-    else:
-        modified[func.name].add(param_idx)
+    if insertAtomicInc2(func.ast, func.parameters[param_idx], typ, call):
+        modified.setdefault(func.name, set()).add(param_idx)
 
 
-def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) -> Tuple[Optional[Any], bool]:
-    if isinstance(node, f2003.Assignment_Stmt):
-        if not fu.isRef(node.items[0], param):
-            return None, False
+# An increment's delta: the sum with its target's term dropped (x = f + x - g
+# gives f - g), rather than the target replaced by a zero IEEE arithmetic
+# cannot fold away.  None unless the target is one added term of the sum.
+def incrementDelta(expr: f2003.Level_2_Expr, is_target: Callable[[f2003.Base], bool]) -> Optional[str]:
+    terms = []
+    while isinstance(expr, f2003.Level_2_Expr):
+        left, op, right = expr.items
+        terms.insert(0, (op, right))
+        expr = left
+    terms.insert(0, ("+", expr))
 
-        rhs = node.items[2]
-        while isinstance(rhs, f2003.Parenthesis):
-            rhs = rhs.items[1]
+    found = [i for i, (op, term) in enumerate(terms) if is_target(term)]
+    if len(found) != 1 or terms[found[0]][0] != "+":
+        return None
+    del terms[found[0]]
 
-        if not isinstance(rhs, f2003.Level_2_Expr):
-            raise OpError(f"Error: unexpected statement while inserting atomics: {node}")
+    (op, first), rest = terms[0], terms[1:]
+    delta = str(first) if op == "+" else f"-({first})"
+    return delta + "".join(f" {op} {term}" for op, term in rest)
 
+
+# The call an increment of target becomes: call <call>(target, delta), or
+# with call None CUDA Fortran's op2_ret = atomicAdd(target, delta).
+def incrementCall(stmt: f2003.Assignment_Stmt, typ: OP.Type, call: Optional[str]) -> f2003.Base:
+    target = str(stmt.items[0])
+    rhs = stmt.items[2]
+    while isinstance(rhs, f2003.Parenthesis):
+        rhs = rhs.items[1]
+
+    if not isinstance(rhs, f2003.Level_2_Expr):
+        raise OpError(f"Error: unexpected statement while inserting atomics: {stmt}")
+
+    # Fortran names are case-insensitive.
+    is_target = lambda n: str(n).lower() == target.lower()
+
+    # CUDA Fortran's atomicAdd takes its value in the target's kind, which a
+    # typed zero gives it; the hooks convert the value themselves.
+    delta = incrementDelta(rhs, is_target) if call is not None else None
+    if delta is None:
         if isinstance(typ, OP.Int):
             literal = f2003.Int_Literal_Constant("0")
         elif isinstance(typ, OP.Float) and typ.size == 32:
@@ -260,31 +285,26 @@ def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) ->
         else:
             raise OpError(f"Error: unexpected arg type while inserting atomics: {typ}")
 
-        # Fortran names are case-insensitive.
-        replaceNodes(rhs, lambda n: str(n).lower() == str(node.items[0]).lower(), literal)
+        replaceNodes(rhs, is_target, literal)
+        delta = str(rhs)
 
-        if not c_api:
-            return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {rhs})"), False
-        else:
-            return f2003.Call_Stmt(f"call atomicAdd({node.items[0]}, {rhs})"), False
+    if call is None:
+        return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({target}, {delta})")
+    return f2003.Call_Stmt(f"call {call}({target}, {delta})")
 
-    if not isinstance(node, f2003.Base):
-        return None, False
 
-    modified = False
-    for i in range(len(node.children)):
-        if node.children[i] is None:
-            continue
+# Replace each assignment to param under node with its increment call; whether
+# any was.
+def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, call: Optional[str]) -> bool:
+    replaced = False
+    for i, child in enumerate(node.children):
+        if isinstance(child, f2003.Assignment_Stmt) and fu.isRef(child.items[0], param):
+            replaceChild(node, i, incrementCall(child, typ, call))
+            replaced = True
+        elif isinstance(child, f2003.Base):
+            replaced = insertAtomicInc2(child, param, typ, call) or replaced
 
-        replacement, modified2 = insertAtomicInc2(node.children[i], param, typ, c_api)
-
-        if replacement is not None:
-            replaceChild(node, i, replacement)
-
-        if replacement is not None or modified2:
-            modified = True
-
-    return None, modified
+    return replaced
 
 
 def replaceChild(node: f2003.Base, index: int, replacement: Any) -> None:

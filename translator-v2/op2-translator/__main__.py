@@ -18,7 +18,7 @@ from language import Lang
 from op import Type
 from scheme import Scheme
 from store import Application
-from target import Target
+from target import Target, renamed
 from util import getVersion, safeFind
 
 logger = logging.getLogger(__name__)
@@ -63,11 +63,16 @@ def main(argv=None) -> None:
 
     target_names = [target.name for target in Target.all()]
 
+    def target_name(name: str) -> str:
+        if name in renamed:
+            raise ArgumentTypeError(f"{name} is now {renamed[name]}")
+        return name
+
     parser.add_argument(
         "-t",
         "--target",
         help="Code-generation target",
-        type=str,
+        type=target_name,
         action="append",
         nargs=1,
         choices=target_names,

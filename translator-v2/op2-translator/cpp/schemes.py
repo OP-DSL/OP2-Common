@@ -90,6 +90,122 @@ class CppOpenMPLegacy(Scheme):
 Scheme.register(CppOpenMPLegacy)
 
 
+class CppCudaLegacy(Scheme):
+    lang = Lang.get("cpp")
+    target = Target.get("cuda_legacy")
+
+    fallback = None
+
+    consts_template = None
+    loop_host_templates = [Path("cpp/cuda_legacy/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("cpp/cuda_legacy/master_kernel.cu.jinja")]
+
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        import cpp.translator.kernels as ctk
+
+        if ctk.hasRuntimeDim(loop):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
+
+        kernel_entities = app.findEntities(loop.kernel, program)
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
+
+        extracted_entities = ctk.extractDependencies(kernel_entities, app)
+
+        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
+        ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_d")
+
+        def indirect(loop: OP.Loop) -> bool:
+            return len(loop.maps) > 0
+
+        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
+            ctk.insertStrides(
+                entity,
+                rewriter,
+                app,
+                loop,
+                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
+                entities=extracted_entities,
+            )
+
+        return ctk.writeSource(extracted_entities)
+
+
+Scheme.register(CppCudaLegacy)
+
+class CppHipLegacy(Scheme):
+    lang = Lang.get("cpp")
+    target = Target.get("hip_legacy")
+
+    fallback = None
+
+    consts_template = None
+    loop_host_templates = [Path("cpp/hip_legacy/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("cpp/hip_legacy/master_kernel.cpp.jinja")]
+
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        colourIndirectRW(config, loop)
+        return config
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        import cpp.translator.kernels as ctk
+
+        if ctk.hasRuntimeDim(loop):
+            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
+        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
+
+        kernel_entities = app.findEntities(loop.kernel, program)
+        if len(kernel_entities) == 0:
+            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
+
+        extracted_entities = ctk.extractDependencies(kernel_entities, app)
+
+        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
+        ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_d")
+
+        def indirect(loop: OP.Loop) -> bool:
+            return len(loop.maps) > 0
+
+        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
+            ctk.insertStrides(
+                entity,
+                rewriter,
+                app,
+                loop,
+                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
+                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
+                entities=extracted_entities,
+            )
+
+        return ctk.writeSource(extracted_entities)
+
+
+Scheme.register(CppHipLegacy)
+
 class CppCuda(Scheme):
     lang = Lang.get("cpp")
     target = Target.get("cuda")
@@ -97,12 +213,14 @@ class CppCuda(Scheme):
     fallback = None
 
     consts_template = None
-    loop_host_templates = [Path("cpp/cuda/loop_host.hpp.jinja")]
+    loop_host_templates = [Path("cpp/cuda/loop_host.h.jinja")]
     master_kernel_templates = [Path("cpp/cuda/master_kernel.cu.jinja")]
+
+    staged = frozenset({"chunk_atomics", "chunk_colouring"})
 
     def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
         config = super().getConfig(loop, config_overrides)
-        colourIndirectRW(config, loop)
+        setChunkConfig(config, loop, self.staged)
         return config
 
     def translateKernel(
@@ -115,10 +233,8 @@ class CppCuda(Scheme):
     ) -> str:
         import cpp.translator.kernels as ctk
 
-        if ctk.hasRuntimeDim(loop):
-            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
-        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
-            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
+        if any(isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1 for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: vector map arguments are not supported by {self.target.name}", loop.loc)
 
         kernel_entities = app.findEntities(loop.kernel, program)
         if len(kernel_entities) == 0:
@@ -126,210 +242,49 @@ class CppCuda(Scheme):
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
 
-        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
-        ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_d")
+        # A global OP_INC incremented in place: every thread adds to the one
+        # copy, so it is atomic under any strategy.
+        def atomic_gbl_inc(arg: OP.Arg) -> bool:
+            return config["gbl_inc_atomic"] and isinstance(arg, OP.ArgGbl) and arg.access_type == OP.AccessType.INC
 
-        def indirect(loop: OP.Loop) -> bool:
-            return len(loop.maps) > 0
-
-        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            ctk.insertStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
-                entities=extracted_entities,
+        # Every other dat, global and info argument is an op::rt::kernel::Ptr too,
+        # whose stride carries its layout and its thread's copy.
+        def ptr_arg(arg: OP.Arg) -> bool:
+            return (
+                isinstance(arg, (OP.ArgDat, OP.ArgGbl, OP.ArgInfo))
+                and not OP.indirectInc(arg)
+                and not atomic_gbl_inc(arg)
             )
+
+        # An indirect increment through the kernel's hook (OP.Loop.incHook).
+        hooked: Set[str] = set()
+        for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
+            hooked |= ctk.insertIncrements(
+                entity, loop, extracted_entities, OP.indirectInc, call="op2_inc::add", hook="op2_inc"
+            )
+            ctk.insertIncrements(entity, loop, extracted_entities, atomic_gbl_inc, call="op::rt::kernel::atomic_inc")
+            ctk.insertPtrs(entity, loop, extracted_entities, ptr_arg)
+
+        ctk.updateFunctionTypes(
+            extracted_entities,
+            lambda typ, func: f"{'template<typename op2_inc> ' if func.key in hooked else ''}__device__ {typ}",
+        )
+        ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
 
         return ctk.writeSource(extracted_entities)
 
 
 Scheme.register(CppCuda)
 
-class CppHip(Scheme):
-    lang = Lang.get("cpp")
+
+class CppHip(CppCuda):
     target = Target.get("hip")
 
-    fallback = None
-
-    consts_template = None
-    loop_host_templates = [Path("cpp/hip/loop_host.hpp.jinja")]
+    loop_host_templates = [Path("cpp/hip/loop_host.h.jinja")]
     master_kernel_templates = [Path("cpp/hip/master_kernel.cpp.jinja")]
-
-    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
-        config = super().getConfig(loop, config_overrides)
-        colourIndirectRW(config, loop)
-        return config
-
-    def translateKernel(
-        self,
-        loop: OP.Loop,
-        program: Program,
-        app: Application,
-        config: Dict[str, Any],
-        kernel_idx: int,
-    ) -> str:
-        import cpp.translator.kernels as ctk
-
-        if ctk.hasRuntimeDim(loop):
-            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
-        if any(isinstance(arg, OP.ArgInfo) for arg in loop.args):
-            raise OP.OpError(f"{loop.kernel}: op_arg_info is not supported by {self.target.name}", loop.loc)
-
-        kernel_entities = app.findEntities(loop.kernel, program)
-        if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
-
-        extracted_entities = ctk.extractDependencies(kernel_entities, app)
-
-        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
-        ctk.renameConsts(extracted_entities, app, lambda const, _: f"{const}_d")
-
-        def indirect(loop: OP.Loop) -> bool:
-            return len(loop.maps) > 0
-
-        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            ctk.insertStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
-                entities=extracted_entities,
-            )
-
-        return ctk.writeSource(extracted_entities)
 
 
 Scheme.register(CppHip)
-
-class CppJitCuda(Scheme):
-    lang = Lang.get("cpp")
-    target = Target.get("c_cuda")
-
-    fallback = Scheme.get((Lang.get("cpp"), Target.get("seq")))
-
-    fallback = None
-
-    consts_template = None
-    loop_host_templates = [Path("cpp/jit_cuda/loop_host.h.jinja")]
-    master_kernel_templates = [Path("cpp/jit_cuda/master_kernel.cu.jinja")]
-
-    def translateKernel(
-        self,
-        loop: OP.Loop,
-        program: Program,
-        app: Application,
-        config: Dict[str, Any],
-        kernel_idx: int,
-    ) -> str:
-        import cpp.translator.kernels as ctk
-
-        if ctk.hasRuntimeDim(loop):
-            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
-
-        kernel_entities = app.findEntities(loop.kernel, program)
-        if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
-
-        extracted_entities = ctk.extractDependencies(kernel_entities, app)
-
-        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
-        ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
-
-        def indirect(loop: OP.Loop) -> bool:
-            return len(loop.maps) > 0
-
-        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            ctk.insertStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
-                entities=extracted_entities,
-            )
-
-            ctk.insertArgGblStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_gbl_stride_d",
-                skip=lambda arg: arg.access_type not in [OP.AccessType.INC, OP.AccessType.MAX, OP.AccessType.MIN],
-            )
-
-        return ctk.writeSource(extracted_entities)
-
-
-Scheme.register(CppJitCuda)
-
-
-class CppJitHip(Scheme):
-    lang = Lang.get("cpp")
-    target = Target.get("c_hip")
-
-    fallback = Scheme.get((Lang.get("cpp"), Target.get("seq")))
-
-    fallback = None
-
-    consts_template = None
-    loop_host_templates = [Path("cpp/jit_hip/loop_host.h.jinja")]
-    master_kernel_templates = [Path("cpp/jit_hip/master_kernel.cpp.jinja")]
-
-    def translateKernel(
-        self,
-        loop: OP.Loop,
-        program: Program,
-        app: Application,
-        config: Dict[str, Any],
-        kernel_idx: int,
-    ) -> str:
-        import cpp.translator.kernels as ctk
-
-        if ctk.hasRuntimeDim(loop):
-            raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
-
-        kernel_entities = app.findEntities(loop.kernel, program)
-        if len(kernel_entities) == 0:
-            raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
-
-        extracted_entities = ctk.extractDependencies(kernel_entities, app)
-
-        ctk.updateFunctionTypes(extracted_entities, lambda typ, _: f"__device__ {typ}")
-        ctk.renameConsts(extracted_entities, app, lambda const, _: f"op2_const_{const}_d")
-
-        def indirect(loop: OP.Loop) -> bool:
-            return len(loop.maps) > 0
-
-        for entity, rewriter in filter(lambda e: e[0] in kernel_entities, extracted_entities):
-            ctk.insertStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_dat{dat_id}_stride_d",
-                skip=lambda arg: arg.access_type == OP.AccessType.INC and config["atomics"] and indirect(loop),
-                entities=extracted_entities,
-            )
-
-            ctk.insertArgGblStrides(
-                entity,
-                rewriter,
-                app,
-                loop,
-                lambda dat_id: f"op2_{loop.kernel}_gbl_stride_d",
-                skip=lambda arg: arg.access_type not in [OP.AccessType.INC, OP.AccessType.MAX, OP.AccessType.MIN],
-            )
-
-        return ctk.writeSource(extracted_entities)
-
-
-Scheme.register(CppJitHip)
 
 
 class CppOpenMP(Scheme):

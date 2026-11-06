@@ -60,7 +60,7 @@ function(_op2_app_tests name)
             elseif(_form STREQUAL "mpi" AND _A_MPI AND MPIEXEC_EXECUTABLE)
                 set(_target "${_A_MPI}_mpi_${_variant}")
                 set(_test "${name}_mpi_${_variant}")
-                if(_variant MATCHES "^(c_)?(cuda|hip)$")
+                if(_variant MATCHES "^(cuda|hip)(_legacy|_f2c)?$")
                     set(_nproc ${_op2_app_mpi_ranks_gpu})
                 else()
                     set(_nproc ${_op2_app_mpi_ranks_lowcost})
@@ -84,11 +84,8 @@ function(_op2_app_tests name)
                     "-DCOMMAND=${_cmd}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/run_app.cmake")
             set(_env "")
-            if(_variant MATCHES "^openmp(_legacy)?$")
+            if(_variant MATCHES "^openmp(_f2c|_legacy)?$")
                 set(_env "OMP_NUM_THREADS=${_op2_app_omp_num_threads}")
-            elseif(_variant MATCHES "^c_(cuda|hip)$")
-                # Their JIT builds on threads op_exit does not wait for.
-                set(_env "OP_JIT_SEQ_COMPILE=1")
             endif()
             set_tests_properties(${_test} PROPERTIES
                 LABELS "apps;${_A_LANGUAGE};${_form}"
