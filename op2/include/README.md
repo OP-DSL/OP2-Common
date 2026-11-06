@@ -104,3 +104,29 @@ op2/env.h        (op::env: the environment variables' parser: every layer
                   about any OP_ variable nothing read; from
                   src/core/op_env.cpp)
 ```
+
+#### MPI (op::mpi, sources under src/mpi)
+```
+op2/mpi/halo.h              (includes: op_lib_core.h, op_mpi_core.h; the halo
+                             lists op_halo_create builds)
+op2/mpi/comm.h              (the sparse data exchange (NBX) halo construction
+                             uses to find what each rank receives)
+op2/mpi/exchange.h          (includes: op_lib_core.h, op_lib_c.h,
+                             op_lib_mpi.h; the halo exchange's gathers and
+                             scatters, compiled for the host and the device)
+op2/mpi/exchange_backend.h  (includes: op2/mpi/exchange.h; the buffers and
+                             exchange specifications a backend gives the
+                             exchange driver)
+```
+
+#### Renumbering (op::renumber, used by src/externlib/op_renumber.cpp)
+Graph and geometric orderings with no OP2 dependencies, each producing a
+permutation.
+```
+op2/renumber/rcm.h          (reverse Cuthill-McKee, and the BFS helpers
+                             Sloan shares)
+op2/renumber/sloan.h        (includes: op2/renumber/rcm.h; Sloan's
+                             profile-minimising ordering)
+op2/renumber/hilbert_sfc.h  (the Hilbert space-filling curve over 2D or 3D
+                             coordinates)
+```
