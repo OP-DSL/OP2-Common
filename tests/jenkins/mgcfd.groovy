@@ -1,84 +1,26 @@
-/* -------------------- Helper Functions -------------------- */
-
-def getBinary(optimisation) {
-    return "euler3d_${optimisation}"
-}
-
-def runMgcfd(dataset, optimisation) {
-
-    def binary = getBinary(optimisation)
-
-    dir(dataset) {
-
-        sh """
-        echo "Running ${binary} on ${dataset}"
-        """
-
-        if (binary.contains("mpi")) {
-            sh "mpirun -np 8 ../MG-CFD-app-OP2/${binary} -i input.dat -v > output_${dataset}_${binary}.txt 2>&1"
-        } else {
-            sh "../MG-CFD-app-OP2/${binary} -i input.dat -v > output_${dataset}_${binary}.txt"
-        }
-    }
-}
-
-def validateMgcfd(dataset, optimisation) {
-
-    def binary = getBinary(optimisation)
-
-    sh """
-    grep -q "Validation passed" ${dataset}/output_${dataset}_${binary}.txt
-    """
-}
-
-def archiveMgcfd(dataset, optimisation, artifactDir) {
-
-    def binary = getBinary(optimisation)
-
-    sh """
-    cp ${dataset}/output_${dataset}_${binary}.txt ${artifactDir}/
-    """
-
-    archiveArtifacts artifacts: "${artifactDir}/output_${dataset}_${binary}.txt", allowEmptyArchive: true
-}
-
-/* -------------------- Pipeline -------------------- */
+/* MG-CFD (M6 wing and Rotor37 1M) through CTest: OP2 is configured with its
+   apps and their tests (tests/apps), every variant built, and each run to
+   its own validation against a downloaded mesh. */
 
 pipeline {
-
     agent any
 
-    environment {
-        OP2_COMPILER = "gnu"
-        OMP_NUM_THREADS = "8"
+    // The defaults are the CI machine's; a test instance points them at its
+    // own clone and environment.
+    parameters {
+        string(name: 'OP2_REPO', defaultValue: 'https://github.com/OP-DSL/OP2-Common.git',
+               description: 'OP2 repository to build and test')
+        string(name: 'OP2_BRANCH', defaultValue: 'OP2_refactor', description: 'Its branch')
+        string(name: 'MGCFD_REPO', defaultValue: 'https://github.com/warwick-hpsc/MG-CFD-app-OP2.git',
+               description: 'MG-CFD repository whose C++ app is tested')
+        string(name: 'MGCFD_BRANCH', defaultValue: 'OP2_refactor', description: 'Its branch')
+        string(name: 'ENV_SCRIPT', defaultValue: '/home/zl/work3/OP2-Common/scripts/zam_gnu',
+               description: 'Script sourced for the compilers and dependency prefixes')
     }
 
     stages {
-
         stage('Setup') {
             parallel {
-                stage('Load OP2 Environment') {
-                    steps {
-                        script {
-                            def vars = sh(
-                                script: '''
-                                #!/bin/bash
-                                . /etc/profile
-                                . /home/zl/work3/OP2-Common/scripts/zam_gnu
-                                env
-                                ''',
-                                returnStdout: true
-                            ).trim().split("\n")
-                
-                            for (v in vars) {
-                                def pair = v.split("=",2)
-                                if (pair.length == 2) {
-                                    env[pair[0]] = pair[1]
-                                }
-                            }
-                        }
-                    }
-                }
                 stage('Create Artifact Folder') {
                     steps {
                         script {
@@ -86,183 +28,70 @@ pipeline {
                             env.ARTIFACT_BASE = "artifacts/mgcfd-${env.RUN_TIMESTAMP}"
 
                             sh "mkdir -p ${env.ARTIFACT_BASE}"
-                            echo "Artifacts stored in ${env.ARTIFACT_BASE}"
+                            echo "Artifacts will be saved in: ${env.ARTIFACT_BASE}"
                         }
                     }
                 }
                 stage('Checkout MG-CFD repo') {
-
                     steps {
                         dir('MG-CFD-app-OP2') {
-                            git url: 'https://github.com/warwick-hpsc/MG-CFD-app-OP2.git', branch: 'OP2_refactor'
+                            git url: params.MGCFD_REPO, branch: params.MGCFD_BRANCH
                         }
                     }
                 }
                 stage('Checkout OP2-Common') {
                     steps {
                         dir('OP2-Common') {
-                            git url: 'https://github.com/OP-DSL/OP2-Common.git', branch: 'OP2_refactor'
-
-                            sh '''
-                            FILE=makefiles/dependencies/parmetis.mk
-                
-                            if ! grep -q "\\-lGKlib" "$FILE"; then
-                                echo "Adding -lGKlib"
-                
-                                sed -i 's/^[[:space:]]*PARMETIS_LINK.*/  PARMETIS_LINK ?= -lparmetis -lmetis -lGKlib/' "$FILE"
-                            fi
-                
-                            echo "Current line:"
-                            grep PARMETIS_LINK "$FILE"
-                            '''
+                            git url: params.OP2_REPO, branch: params.OP2_BRANCH
                         }
                     }
                 }
             }
         }
 
-        stage('Build OP2') {
+        // Each shell step sources ENV_SCRIPT for the compilers and dependency
+        // prefixes.
+        stage('Configure OP2') {
             steps {
-                dir('OP2-Common/op2') {
-                    sh 'unset OP_AUTO_SOA'
-                    sh 'make config'
-                    sh 'make clean'
-                    sh 'make config'
-                    sh 'make -j'
+                dir('OP2-Common') {
+                    sh '''
+                    . /etc/profile
+                    . "$ENV_SCRIPT"
+                    rm -rf build
+                    cmake -B build -DCMAKE_BUILD_TYPE=Release \\
+                        -DPython3_EXECUTABLE="$(command -v python3)" \\
+                        -DCMAKE_CUDA_ARCHITECTURES=native \\
+                        -DHDF5_ROOT="$HDF5_PAR_INSTALL_PATH" \\
+                        -DParMETIS_ROOT="$PARMETIS_INSTALL_PATH" \\
+                        -DMETIS_ROOT="${METIS_INSTALL_PATH:-$PARMETIS_INSTALL_PATH}" \\
+                        -DKaHIP_ROOT="$KAHIP_INSTALL_PATH" \\
+                        -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON -DOP2_ENABLE_APP_TESTS=ON \\
+                        -DOP2_TEST_MGCFD_DIR="$WORKSPACE/MG-CFD-app-OP2"
+                    '''
                 }
             }
         }
 
-        stage('Build mgcfd') {
+        stage('Build OP2 and the apps') {
             steps {
-                script {
-                    def targets = [
-                        "euler3d_seq",
-                        "euler3d_genseq",
-                        "euler3d_openmp",
-                        "euler3d_cuda",
-                        "euler3d_mpi_seq",
-                        "euler3d_mpi_genseq",
-                        "euler3d_mpi_openmp",
-                        "euler3d_mpi_cuda"
-                    ]
-
-                    dir("MG-CFD-app-OP2") {
-                        sh "make clean"
-
-                        for (t in targets) {
-                            sh "make ${t}"
-                        }
-                    }
+                dir('OP2-Common') {
+                    sh '. /etc/profile; . "$ENV_SCRIPT"; cmake --build build -j'
                 }
             }
         }
 
-        stage('Download meshes') {
-            parallel {
-                stage('Download M6_wing') {
-                    steps {
-                        sh '''
-                        if [ ! -d M6_wing ]; then
-                            wget https://warwick.ac.uk/fac/sci/dcs/research/systems/hpsc/software/m6_wing.tar.gz
-                            tar -xvf m6_wing.tar.gz
-                            rm m6_wing.tar.gz
-                        fi
-                        '''
-                    }
-                }
-                stage('Download Rotor37_1M') {
-                    steps {
-                        sh '''
-                        if [ ! -d Rotor37_1M ]; then
-                            wget https://warwick.ac.uk/fac/sci/dcs/research/systems/hpsc/software/rotor37_1m.tar.gz
-                            tar -xvf rotor37_1m.tar.gz
-                            rm rotor37_1m.tar.gz
-                        fi
-                        '''
-                    }
+        // A failed test marks the build unstable through the JUnit report.
+        stage('Run mgcfd') {
+            steps {
+                dir('OP2-Common') {
+                    sh ". /etc/profile; . \"\$ENV_SCRIPT\"; ctest --test-dir build -L apps -R '^mgcfd_' -j8 --output-on-failure --output-junit mgcfd.xml || true"
                 }
             }
-        }
-
-        stage('MGCFD Sequential Tests') {
-            matrix {
-                axes {
-                    axis {
-                        name 'DATASET'
-                        values 'M6_wing', 'Rotor37_1M'
-                    }
-                    axis {
-                        name 'OPTIMISATION'
-                        values 'seq', 'genseq'
-                    }
-                }
-
-                stages {
-                    stage('Run mgcfd') {
-                        steps {
-                            script {
-                                runMgcfd(DATASET, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Validate output') {
-                        steps {
-                            script {
-                                validateMgcfd(DATASET, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Archive output') {
-                        steps {
-                            script {
-                                archiveMgcfd(DATASET, OPTIMISATION, env.ARTIFACT_BASE)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('MGCFD Parallel Tests') {
-            matrix {
-                axes {
-                    axis {
-                        name 'DATASET'
-                        values 'M6_wing', 'Rotor37_1M'
-                    }
-                    axis {
-                        name 'OPTIMISATION'
-                        values 'openmp', 'cuda', 'mpi_seq', 'mpi_genseq', 'mpi_openmp', 'mpi_cuda'
-                    }
-                }
-
-                stages {
-                    stage('Run mgcfd') {
-                        steps {
-                            script {
-                                runMgcfd(DATASET, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Validate output') {
-                        steps {
-                            script {
-                                validateMgcfd(DATASET, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Archive output') {
-                        steps {
-                            script {
-                                archiveMgcfd(DATASET, OPTIMISATION, env.ARTIFACT_BASE)
-                            }
-                        }
-                    }
+            post {
+                always {
+                    junit testResults: 'OP2-Common/build/mgcfd.xml', allowEmptyResults: false
+                    sh "cp OP2-Common/build/Testing/Temporary/LastTest*.log ${env.ARTIFACT_BASE}/ || true"
+                    archiveArtifacts artifacts: "${env.ARTIFACT_BASE}/*", allowEmptyArchive: true
                 }
             }
         }

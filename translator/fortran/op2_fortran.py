@@ -44,9 +44,6 @@ from op2_gen_openmp3 import *
 import op2_gen_openacc
 from op2_gen_openacc import *
 
-import op2_gen_openmp4
-from op2_gen_openmp4 import *
-
 
 
 #import mpiseq code generation function
@@ -1047,9 +1044,6 @@ op2_gen_cuda_color2(str(sys.argv[init_ctr]), date, consts, kernels, hydra,bookle
 
 #OpenACC
 #op2_gen_openacc(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
-
-#OpenMP4 offload
-op2_gen_openmp4(str(sys.argv[init_ctr]), date, consts, kernels, hydra, bookleaf)  # optimised by removing the overhead due to fortran c to f pointer setups
 
 #if hydra:
 #  op2_gen_cuda_hydra() #includes several Hydra specific features

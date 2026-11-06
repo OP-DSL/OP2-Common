@@ -36,6 +36,7 @@
 
 #include <op_gpu_shims.h>
 #include <op_cuda_rt_support.h>
+#include <op2/env.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
@@ -55,11 +56,13 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::env::finish();
 }
 
-void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
+void op_mpi_init(int argc, char **argv, int diags, int, int) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::env::finish();
 }
 
 void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,
@@ -128,11 +131,11 @@ op_dat op_decl_dat_temp_char(op_set set, int dim, char const *type, int size,
 
   size_t set_size = dat->set->size + dat->set->exec_size + dat->set->nonexec_size;
   if (strstr(dat->type, ":soa") != NULL || (OP_auto_soa && dat->dim > 1)) {
-    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size));
-    op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size));
+    cutilSafeCall(op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * round32(set_size)));
+    cutilSafeCall(op_deviceZero(dat->data_d, (size_t)(dat->size) * round32(set_size)));
   } else {
-    op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size);
-    op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size);
+    cutilSafeCall(op_deviceMalloc((void **)&(dat->data_d), (size_t)(dat->size) * set_size));
+    cutilSafeCall(op_deviceZero(dat->data_d, (size_t)(dat->size) * set_size));
   }
 
   return dat;
@@ -217,7 +220,7 @@ op_decl_const_char ( int dim, char const * type, int size, char * dat,
 
 idx_g_t op_get_size(op_set set) { return set->size; }
 
-idx_g_t op_get_global_set_offset(op_set set) { return 0; }
+idx_g_t op_get_global_set_offset(op_set) { return 0; }
 
 void op_printf(const char *format, ...) {
   va_list argptr;

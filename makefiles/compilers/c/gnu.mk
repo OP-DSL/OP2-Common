@@ -15,7 +15,7 @@ else
 endif
 
 CONFIG_CFLAGS ?= -std=c99 $(BASE_CXXFLAGS) $(EXTRA_CFLAGS)
-CONFIG_CXXFLAGS ?= $(BASE_CXXFLAGS) $(EXTRA_CXXFLAGS) -std=c++17
+CONFIG_CXXFLAGS ?= $(BASE_CXXFLAGS) $(EXTRA_CXXFLAGS) -std=c++20
 
 CONFIG_CXXLINK ?= -lstdc++
 
@@ -41,5 +41,3 @@ ifeq ($(shell uname -s),Darwin)
   endif
 endif
 
-# CONFIG_OMP_OFFLOAD_CXXFLAGS ?=
-CONFIG_CPP_HAS_OMP_OFFLOAD ?= false
