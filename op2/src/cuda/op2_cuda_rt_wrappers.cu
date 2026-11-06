@@ -34,7 +34,7 @@
 #include <op_lib_core.h>
 #include <op_lib_c.h>
 
-#include <op_gpu_shims.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
 
 #include <vector>
