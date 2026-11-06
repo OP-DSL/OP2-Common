@@ -3,6 +3,7 @@ module gbl_kernels
     private
 
     public :: read1_k, read5_k, inc1_k, inc5_k, min1_k, min5_k, max1_k, max5_k
+    public :: read_first_k, opt_read5_k
 
 contains
   subroutine read1_k(dat, g)
@@ -21,6 +22,28 @@ contains
       dat(i) = g(i)
     end do
   end subroutine read5_k
+
+  subroutine read_first_k(dat, g)
+    real(8), intent(out) :: dat
+    real(8), dimension(5), intent(in) :: g
+
+    dat = g(1)
+  end subroutine read_first_k
+
+  subroutine opt_read5_k(dat, g, on)
+    real(8), dimension(5), intent(out) :: dat
+    real(8), dimension(5), intent(in)  :: g
+    integer(4), intent(in) :: on
+    integer :: i
+
+    do i = 1, 5
+      if (on == 1) then
+        dat(i) = g(i)
+      else
+        dat(i) = -1.0d0
+      end if
+    end do
+  end subroutine opt_read5_k
 
   subroutine inc1_k(dat, g)
     real(8), intent(in)    :: dat

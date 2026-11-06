@@ -10,7 +10,7 @@ from language import Lang
 from scheme import Scheme
 from diagnostics import ParseError
 from store import Application, Program
-from strategy import indirectRW
+from strategy import indirectRW, setChunkConfig
 from target import Target
 
 
@@ -123,15 +123,15 @@ class FortranOpenMPLegacy(Scheme):
 Scheme.register(FortranOpenMPLegacy)
 
 
-class FortranCuda(Scheme):
+class FortranCudaLegacy(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("cuda")
+    target = Target.get("cuda_legacy")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = Path("fortran/cuda/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/cuda/loop_host.CUF.jinja")]
-    master_kernel_templates = [Path("fortran/cuda/master_kernel.F90.jinja")]
+    consts_template = Path("fortran/cuda_legacy/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/cuda_legacy/loop_host.CUF.jinja")]
+    master_kernel_templates = [Path("fortran/cuda_legacy/master_kernel.F90.jinja")]
 
     def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         for arg in loop.args:
@@ -254,18 +254,18 @@ class FortranCuda(Scheme):
         return ftk.writeSource(kernel_entities + dependencies, "attributes(device) &\n")
 
 
-Scheme.register(FortranCuda)
+Scheme.register(FortranCudaLegacy)
 
 
-class FortranCSeq(Scheme):
+class FortranSeqF2C(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("c_seq")
+    target = Target.get("seq_f2c")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = Path("fortran/c_seq/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/c_seq/loop_host.F90.jinja"), Path("fortran/c_seq/loop_host.hpp.jinja")]
-    master_kernel_templates = [Path("fortran/c_seq/master_kernel.F90.jinja"), Path("fortran/c_seq/master_kernel.cpp.jinja")]
+    consts_template = Path("fortran/seq_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/seq_f2c/loop_host.F90.jinja"), Path("fortran/seq_f2c/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("fortran/seq_f2c/master_kernel.F90.jinja"), Path("fortran/seq_f2c/master_kernel.cpp.jinja")]
 
     def translateKernel(
         self,
@@ -300,18 +300,18 @@ class FortranCSeq(Scheme):
         return ftk_c.translate(info)
 
 
-Scheme.register(FortranCSeq)
+Scheme.register(FortranSeqF2C)
 
 
-class FortranCCuda(Scheme):
+class FortranCudaF2C(Scheme):
     lang = Lang.get("F90")
-    target = Target.get("c_cuda")
+    target = Target.get("cuda_f2c")
 
     fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
 
-    consts_template = Path("fortran/c_cuda/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/c_cuda/loop_host.F90.jinja"), Path("fortran/c_cuda/loop_host.cuh.jinja")]
-    master_kernel_templates = [Path("fortran/c_cuda/master_kernel.F90.jinja"), Path("fortran/c_cuda/master_kernel.cu.jinja")]
+    consts_template = Path("fortran/cuda_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/cuda_f2c/loop_host.F90.jinja"), Path("fortran/cuda_f2c/loop_host.cuh.jinja")]
+    master_kernel_templates = [Path("fortran/cuda_f2c/master_kernel.F90.jinja"), Path("fortran/cuda_f2c/master_kernel.cu.jinja")]
 
     def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
         for arg in loop.args:
@@ -320,20 +320,11 @@ class FortranCCuda(Scheme):
 
         return True
 
-    def getBaseConfig(self, loop: OP.Loop) -> Dict[str, Any]:
-        config = self.target.defaultConfig()
+    staged = frozenset({"chunk_atomics", "chunk_colouring"})
 
-        use_coloring = False
-
-        for arg in loop.args:
-            if isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.RW:
-                use_coloring = True
-                break
-
-        if use_coloring:
-            config["atomics"] = False
-            config["color2"] = True
-
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        setChunkConfig(config, loop, self.staged)
         return config
 
     def translateKernel(
@@ -368,21 +359,20 @@ class FortranCCuda(Scheme):
         def match_indirect(arg):
             return isinstance(arg, OP.ArgDat) and arg.map_id is not None
 
-        def match_atomic_inc(arg):
-            return arg.access_type == OP.AccessType.INC and config["atomics"]
-
         def match_gbl(arg):
             return isinstance(arg, OP.ArgGbl)
 
+        # An indirect increment through the kernel's hook (OP.Loop.incHook).
         ftk.insertAtomicIncs(
             kernel_entity,
             [kernel_entity] + dependencies,
             loop,
             app,
-            lambda arg: match_indirect(arg) and match_atomic_inc(arg),
-            c_api=True,
+            lambda arg: match_indirect(arg) and arg.access_type == OP.AccessType.INC,
+            call="op2_dat_inc",
         )
 
+        # A global every element adds to: always atomically.
         if config["gbl_inc_atomic"]:
             ftk.insertAtomicIncs(
                 kernel_entity,
@@ -390,24 +380,95 @@ class FortranCCuda(Scheme):
                 loop,
                 app,
                 lambda arg: match_gbl(arg) and arg.access_type == OP.AccessType.INC,
-                c_api=True,
+                call="op2_gbl_inc",
             )
 
         info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
         setattr(loop, "const_types", info.consts);
 
-        return ftk_c.translate(info)
+        return ftk_c.translate(info, hooked=True)
 
 
-Scheme.register(FortranCCuda)
+Scheme.register(FortranCudaF2C)
 
 
-class FortranCHip(FortranCCuda):
-    target = Target.get("c_hip")
+class FortranHipF2C(FortranCudaF2C):
+    target = Target.get("hip_f2c")
 
-    consts_template = Path("fortran/c_hip/consts.F90.jinja")
-    loop_host_templates = [Path("fortran/c_hip/loop_host.F90.jinja"), Path("fortran/c_hip/loop_host.hip.h.jinja")]
-    master_kernel_templates = [Path("fortran/c_hip/master_kernel.F90.jinja"), Path("fortran/c_hip/master_kernel.hip.cpp.jinja")]
+    consts_template = Path("fortran/hip_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/hip_f2c/loop_host.F90.jinja"), Path("fortran/hip_f2c/loop_host.hip.h.jinja")]
+    master_kernel_templates = [Path("fortran/hip_f2c/master_kernel.F90.jinja"), Path("fortran/hip_f2c/master_kernel.hip.cpp.jinja")]
 
 
-Scheme.register(FortranCHip)
+Scheme.register(FortranHipF2C)
+
+
+class FortranOpenMPF2C(Scheme):
+    lang = Lang.get("F90")
+    target = Target.get("openmp_f2c")
+
+    fallback = Scheme.get((Lang.get("F90"), Target.get("seq")))
+
+    consts_template = Path("fortran/openmp_f2c/consts.F90.jinja")
+    loop_host_templates = [Path("fortran/openmp_f2c/loop_host.F90.jinja"), Path("fortran/openmp_f2c/loop_host.hpp.jinja")]
+    master_kernel_templates = [Path("fortran/openmp_f2c/master_kernel.F90.jinja"), Path("fortran/openmp_f2c/master_kernel.cpp.jinja")]
+
+    def canGenLoopHost(self, loop: OP.Loop, program: Program, app: Application) -> bool:
+        for arg in loop.args:
+            if isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.RW, OP.AccessType.WRITE]:
+                return False
+
+        return True
+
+    # chunk_colouring runs the plain body over its chunks.
+    staged = frozenset({"chunk_atomics"})
+
+    def getConfig(self, loop: OP.Loop, config_overrides: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        config = super().getConfig(loop, config_overrides)
+        setChunkConfig(config, loop, self.staged)
+        return config
+
+    def translateKernel(
+        self,
+        loop: OP.Loop,
+        program: Program,
+        app: Application,
+        config: Dict[str, Any],
+        kernel_idx: int,
+    ) -> str:
+        kernel_entities = app.findEntities(loop.kernel, program, [])
+
+        assert(len(kernel_entities) == 1)
+        kernel_entity = kernel_entities[0]
+
+        dependencies, _ = ftk.extractDependencies([kernel_entity], app, [])
+
+        kernel_entity = copy.deepcopy(kernel_entity)
+        dependencies = copy.deepcopy(dependencies)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.fixHydraIO(entity)
+
+        for entity in [kernel_entity] + dependencies:
+            ftk.removeExternals(entity)
+
+        const_rename = None
+        if self.lang.user_consts_module is None:
+            const_rename = lambda const: f"op2_const_{const}"
+            ftk.renameConsts(self.lang, [kernel_entity] + dependencies, app, const_rename)
+
+        # An indirect increment through the kernel's hook (OP.Loop.incHook).
+        ftk.insertAtomicIncs(
+            kernel_entity,
+            [kernel_entity] + dependencies,
+            loop,
+            app,
+            lambda arg: isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.INC,
+            call="op2_dat_inc",
+        )
+
+        info = ftk_c.parseInfo([kernel_entity] + dependencies, app, loop, config, const_rename=const_rename)
+        return ftk_c.translate(info, hooked=True)
+
+
+Scheme.register(FortranOpenMPF2C)

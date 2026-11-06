@@ -5,4 +5,5 @@ op2_add_functional_tests(
     SOURCES    rw_kernels.F90 rw_tests.F90
     FAMILIES   serial mpi soa soa_mpi
     EXCLUDE_VARIANTS ${OP2_TEST_MPI_FORTRAN_EXCLUDE}
-    LINK_LIBRARIES   ${OP2_TEST_MPI_FORTRAN_LINK})
+    LINK_LIBRARIES   ${OP2_TEST_MPI_FORTRAN_LINK}
+    STRATEGIES chunk_atomics atomics chunk_colouring colouring)

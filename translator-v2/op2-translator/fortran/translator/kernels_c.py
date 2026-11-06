@@ -58,7 +58,7 @@ class FArray(FType):
     def spanBounds(self) -> str:
         bounds = []
         for lb, ub in self.shape:
-            bounds.append(f"f2c::Extent{{{lb}, {ub}}}")
+            bounds.append(f"op::rt::kernel::Extent{{{lb}, {ub}}}")
 
         return ", ".join(bounds)
 
@@ -67,7 +67,7 @@ class FArray(FType):
         if const:
             const_str = "const "
 
-        return f"f2c::Span<{const_str}{self.inner.asC()}, {len(self.shape)}> {var}{{{ptr}, {self.spanBounds()}}}"
+        return f"op::rt::kernel::Span<{const_str}{self.inner.asC()}, {len(self.shape)}> {var}{{{ptr}, {self.spanBounds()}}}"
 
 
 @dataclass(frozen=True)
@@ -135,6 +135,8 @@ class Info:
     consts: Dict[str, FType] = field(default_factory=dict)
 
     subprograms: Dict[str, SubprogramInfo] = field(default_factory=dict)
+    # Those templates over the kernel's increment hook.
+    hooked: Set[str] = field(default_factory=set)
 
     def functionNames(self) -> List[str]:
         return [s.name for s in self.subprograms.values() if s.isFunction()]
@@ -395,8 +397,8 @@ def resolveParamAccesses(info: Info) -> None:
     params = [param for sub_info in info.subprograms.values() for param in sub_info.params]
 
     # A param passed to a non-const one is non-const, a call further up the chain
-    # each pass; the rest, recursion included, are const.  atomicAdd only reads
-    # its value; a target is non-const already.
+    # each pass; the rest, recursion included, are const.  An increment hook only
+    # reads its value; a target is non-const already.
     changed = True
     while changed:
         changed = False
@@ -404,7 +406,7 @@ def resolveParamAccesses(info: Info) -> None:
             if param.is_const is None and any(
                 info.subprograms[name].params[idx].is_const is False
                 for name, idx in param.as_arg
-                if name != "atomicAdd"
+                if name not in increment_hooks
             ):
                 param.is_const = False
                 changed = True
@@ -458,8 +460,13 @@ def resolveParamAccessesLocal(ctx: Context) -> None:
         elif not param.is_const_local:
             param.is_const = False
 
-        if param.is_const == None and ("atomicAdd", 0) in param.as_arg:
+        if param.is_const == None and any((call, 0) in param.as_arg for call in increment_hooks):
             param.is_const = False
+
+
+# The increment hooks insertAtomicIncs inserts, as the C++ they call: an
+# indirect dat's through the kernel's hook, a global's always atomically.
+increment_hooks = {"op2_dat_inc": "op2_inc::add", "op2_gbl_inc": "op::rt::kernel::atomic_inc"}
 
 
 def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
@@ -485,7 +492,7 @@ def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
         func_name = translateName(func_name_node, ctx)
         sub_info = ctx.info.subprograms.get(func_name)
 
-        if func_name != "atomicAdd" and sub_info is None:
+        if func_name not in increment_hooks and sub_info is None:
             return None
 
         arg_idx = [id(item) for item in parent.items].index(id(node))
@@ -494,7 +501,17 @@ def getCall(ref: f2003.Name, ctx: Context) -> Optional[Tuple[str, int]]:
     return None
 
 
-def translate(info: Info) -> str:
+# The kernel's subprograms as C++.  With hooked, those an indirect OP_INC
+# argument reaches are templates over the kernel's increment hook, op2_inc
+# (OP.Loop.incHook), which every call of one names.
+def translate(info: Info, hooked: bool = False) -> str:
+    if hooked:
+        info.hooked = {
+            sub_info.name
+            for sub_info in info.subprograms.values()
+            if any(param.op_arg is not None and OP.indirectInc(param.op_arg) for param in sub_info.params)
+        }
+
     decls = ""
     srcs = ""
 
@@ -527,7 +544,7 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
             if param.is_const:
                 const = "const "
 
-            param_decls.append(f"f2c::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
+            param_decls.append(f"op::rt::kernel::Ptr<{const}{param_type.inner.asC()}> _f2c_ptr_{param.name}")
 
     return_type = "void"
 
@@ -541,7 +558,8 @@ def translateSubprogram(ctx: Context) -> Tuple[str, str]:
     else:
         prefix = ""
 
-    src_decl  = f"static {prefix}{return_type} {ctx.sub_info.name}(\n    "
+    template = "template<typename op2_inc>\n" if ctx.sub_info.name in ctx.info.hooked else ""
+    src_decl  = f"{template}static {prefix}{return_type} {ctx.sub_info.name}(\n    "
     src_decl += ",\n    ".join(param_decls) + "\n)"
 
     src = src_decl + " "
@@ -646,7 +664,7 @@ def translateSpecificationPart(spec_part: f2003.Specification_Part, ctx: Context
             src += f"{type_.asLocal(name)};\n"
         else:
             src += f"{type_.asLocal('_f2c_arr_' + name)};\n"
-            src += f"const {type_.asSpan('f2c::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
+            src += f"const {type_.asSpan('op::rt::kernel::Ptr{_f2c_arr_' + name + '}', name, False, ctx)};\n"
 
     return src + "\n" + init_src
 
@@ -696,11 +714,17 @@ def translateAssignmentStmt(assignment_stmt: f2003.Assignment_Stmt, ctx: Context
 
 def translateCallStmt(call_stmt: f2003.Call_Stmt, ctx: Context) -> str:
     call_target = translateGeneric(call_stmt.items[0], ctx)
+    callee = increment_hooks.get(call_target) or calleeName(call_target, ctx)
     if call_stmt.items[1] is None:
-        return f"{call_target}();\n"
+        return f"{callee}();\n"
     else:
         actual_arg_spec_list = call_stmt.items[1]
-        return f"{call_target}({translateArgList(list(actual_arg_spec_list.items), ctx, call_target)});\n"
+        return f"{callee}({translateArgList(list(actual_arg_spec_list.items), ctx, call_target)});\n"
+
+
+# A subprogram as a call names it: with the kernel's hook if a template over it.
+def calleeName(name: str, ctx: Context) -> str:
+    return f"{name}<op2_inc>" if name in ctx.info.hooked else name
 
 
 def translateContinueStmt(continue_stmt: f2003.Continue_Stmt, ctx: Context) -> str:
@@ -722,7 +746,7 @@ def translateReturnStmt(return_stmt: f2003.Return_Stmt, ctx: Context) -> str:
 
 
 def translateStopStmt(stop_stmt: f2003.Stop_Stmt, ctx: Context) -> str:
-    src = "f2c::trap();"
+    src = "op::rt::kernel::trap();"
     return src
 
 
@@ -793,13 +817,6 @@ def translateName(name: f2003.Name, ctx: Optional[Context] = None) -> str:
     parent = getattr(name, "parent", None)
     if parent is not None and isinstance(parent, f2003.Intrinsic_Function_Reference):
         return raw
-
-    rename = {
-        "atomicadd": "atomicAdd",
-    }
-
-    if raw in rename:
-        return rename[raw]
 
     cxx_keywords = [
         "alignas",
@@ -918,7 +935,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
         ctx.error("Part-ref has no subscript list", part_ref)
 
     if name in ctx.info.functionNames():
-        return f"{name}({translateArgList(subscript_list.children, ctx, name)})"
+        return f"{calleeName(name, ctx)}({translateArgList(subscript_list.children, ctx, name)})"
 
     if len(subscript_list.children) == 0:
         ctx.error("Unexpected zero-length part-ref subscript list", part_ref)
@@ -942,7 +959,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
         for shape, child in zip(array_type.shape, subscript_list.children):
             if not isinstance(child, f2003.Subscript_Triplet):
                 idx = translateGeneric(child, ctx)
-                extents.append(f"f2c::Extent{{{idx}, {idx}}}")
+                extents.append(f"op::rt::kernel::Extent{{{idx}, {idx}}}")
                 continue
 
             if child.items[2] is not None:
@@ -960,7 +977,7 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
             else:
                 ub = shape[1]
 
-            extents.append(f"f2c::Extent{{{lb}, {ub}}}")
+            extents.append(f"op::rt::kernel::Extent{{{lb}, {ub}}}")
 
         return f"{name}.slice({', '.join(extents)})"
 
@@ -985,44 +1002,44 @@ def translatePartRef(part_ref: f2003.Part_Ref, ctx: Context) -> str:
 
 def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intrinsic_Function_Reference, ctx: Context) -> str:
     intrinsic_funcs = {
-        "abs":   "f2c::abs",
-        "aint":  "f2c::aint",
-        "dble":  "f2c::dble",
-        "min":   "f2c::min",
-        "max":   "f2c::max",
-        "mod":   "f2c::mod",
-        "nint":  "f2c::nint",
-        "sign":  "f2c::copysign",
+        "abs":   "op::rt::kernel::abs",
+        "aint":  "op::rt::kernel::aint",
+        "dble":  "op::rt::kernel::dble",
+        "min":   "op::rt::kernel::min",
+        "max":   "op::rt::kernel::max",
+        "mod":   "op::rt::kernel::mod",
+        "nint":  "op::rt::kernel::nint",
+        "sign":  "op::rt::kernel::copysign",
 
-        "acos":  "f2c::acos",
-        "asin":  "f2c::asin",
-        "atan":  "f2c::atan",
-        "atan2": "f2c::atan2",
-        "cos":   "f2c::cos",
-        "cosh":  "f2c::cosh",
-        "exp":   "f2c::exp",
-        "log":   "f2c::log",
-        "log10": "f2c::log10",
-        "sin":   "f2c::sin",
-        "sinh":  "f2c::sinh",
-        "sqrt":  "f2c::sqrt",
-        "tan":   "f2c::tan",
-        "tanh":  "f2c::tanh",
+        "acos":  "op::rt::kernel::acos",
+        "asin":  "op::rt::kernel::asin",
+        "atan":  "op::rt::kernel::atan",
+        "atan2": "op::rt::kernel::atan2",
+        "cos":   "op::rt::kernel::cos",
+        "cosh":  "op::rt::kernel::cosh",
+        "exp":   "op::rt::kernel::exp",
+        "log":   "op::rt::kernel::log",
+        "log10": "op::rt::kernel::log10",
+        "sin":   "op::rt::kernel::sin",
+        "sinh":  "op::rt::kernel::sinh",
+        "sqrt":  "op::rt::kernel::sqrt",
+        "tan":   "op::rt::kernel::tan",
+        "tanh":  "op::rt::kernel::tanh",
 
-        "dabs":  "f2c::abs",
-        "dacos": "f2c::acos",
-        "dasin": "f2c::asin",
-        "datan": "f2c::atan",
-        "dcos":  "f2c::cos",
-        "dcosh": "f2c::cosh",
-        "dexp":  "f2c::exp",
-        "dint":  "f2c::aint",
-        "dsign": "f2c::copysign",
-        "dsin":  "f2c::sin",
-        "dsinh": "f2c::sinh",
-        "dsqrt": "f2c::sqrt",
-        "dtan":  "f2c::tan",
-        "dtanh": "f2c::tanh",
+        "dabs":  "op::rt::kernel::abs",
+        "dacos": "op::rt::kernel::acos",
+        "dasin": "op::rt::kernel::asin",
+        "datan": "op::rt::kernel::atan",
+        "dcos":  "op::rt::kernel::cos",
+        "dcosh": "op::rt::kernel::cosh",
+        "dexp":  "op::rt::kernel::exp",
+        "dint":  "op::rt::kernel::aint",
+        "dsign": "op::rt::kernel::copysign",
+        "dsin":  "op::rt::kernel::sin",
+        "dsinh": "op::rt::kernel::sinh",
+        "dsqrt": "op::rt::kernel::sqrt",
+        "dtan":  "op::rt::kernel::tan",
+        "dtanh": "op::rt::kernel::tanh",
     }
 
     items = intrinsic_function_reference.items
@@ -1058,9 +1075,9 @@ def translateActualArgSpecList(actual_arg_spec_list: f2003.Actual_Arg_Spec_List,
 
 # Handles Actual_Arg_Spec_Lists and Section_Subscript_Lists for functions
 def translateArgList(arg_list: List[f2003.Base], ctx: Context, call_target: str) -> str:
-    if call_target == "atomicAdd":
+    if call_target in increment_hooks:
         assert(len(arg_list) == 2)
-        return ", ".join([f"&({translateGeneric(arg_list[0], ctx)})", translateGeneric(arg_list[1], ctx)])
+        return ", ".join(translateGeneric(arg, ctx) for arg in arg_list)
 
     target_sub = ctx.info.subprograms[call_target]
 
@@ -1097,7 +1114,7 @@ def translateParenthesis(parenthesis: f2003.Parenthesis, ctx: Context) -> str:
 
 def translateMultOperand(mult_operand: f2003.Mult_Operand, ctx: Context) -> str:
     items = mult_operand.items
-    return f"f2c::pow({translateGeneric(items[0], ctx)}, {translateGeneric(items[2], ctx)})"
+    return f"op::rt::kernel::pow({translateGeneric(items[0], ctx)}, {translateGeneric(items[2], ctx)})"
 
 
 def translateAddOperand(add_operand: f2003.Add_Operand, ctx: Context) -> str:

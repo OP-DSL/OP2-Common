@@ -1,0 +1,12 @@
+{% import "fortran/abi.jinja" as abi with context %}
+#include <cstdint>
+
+{% if lang.user_consts_module is not none %}
+#include "hydra_const_list_c_seq.h"
+{% else %}
+    {% for const in app.consts() %}
+extern {{const.typ.c()}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+{% endif %}
+
+{% include "cpu/master_kernel.jinja" %}

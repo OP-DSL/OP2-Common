@@ -57,12 +57,14 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::rt::init_gpu();
   op::env::finish();
 }
 
 void op_mpi_init(int argc, char **argv, int diags, int, int) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::rt::init_gpu();
   op::env::finish();
 }
 

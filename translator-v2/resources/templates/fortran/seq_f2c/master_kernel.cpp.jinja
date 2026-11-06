@@ -1,0 +1,21 @@
+#include <cstdint>
+
+{% if lang.user_consts_module is not none %}
+#include "hydra_const_list_c_seq.h"
+{% else %}
+    {% for const in app.consts() %}
+extern {{const.typ.c()}} op2_const_{{const.ptr}}{% if const.dim > 1 %}[{{const.dim}}]{% endif %};
+    {% endfor %}
+{% endif %}
+
+#include <op2/rt/kernel/prelude.h>
+#include <op_lib_cpp.h>
+#include <op_profile.h>
+
+#include <cmath>
+#include <cstdio>
+
+
+{% for loop_, _ in app.loops() if not fallback_loops[loop_.name] %}
+#include "{{loop_.name}}_kernel_aux1.hpp"
+{% endfor %}

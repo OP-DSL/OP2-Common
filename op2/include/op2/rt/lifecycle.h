@@ -17,6 +17,11 @@ void init();
 // the CPU libraries' op_init calls it.  From src/rt/cpu/op_cpu_init.cpp.
 void init_cpu();
 
+// Add the GPU backend's part to the run's context, its options and the
+// device's facts, and declare its families; the GPU libraries' op_init calls
+// it once the device is up.  From src/rt/gpu/op_gpu_init.cpp.
+void init_gpu();
+
 // Write the tuner's and the JIT's reports; op_profile_output.
 void write_reports(int rank, int ranks);
 
