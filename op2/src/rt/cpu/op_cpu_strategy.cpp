@@ -1,0 +1,186 @@
+#include <op2/rt/cpu/strategy.h>
+
+#include <chrono>
+#include <string>
+
+namespace op::rt::cpu {
+
+// --- The base of every OpenMP strategy ----------------------------------------------
+
+void StrategyBase::split(int begin, int end, const int *order, std::span<op_arg> args,
+                         bool exchanging) {
+    if (end <= begin)
+        return;
+    abi::cpu::Range range = m_executor.range(exchanging);
+    range.begin = begin;
+    range.end = end;
+    range.order = order;
+    m_family.range(range, args.data());
+}
+
+template<typename F>
+std::optional<float> StrategyBase::run_phases(const op::rt::loop::Call& call, bool timed,
+                                              const op::rt::loop::Phases& phases, F&& phase) {
+    using clock = std::chrono::steady_clock;
+    clock::duration elapsed{};
+    op::rt::loop::run_phases(call, phases, [&](int index) {
+        bool exchanging = index < phases.wait_before;
+        if (!timed) {
+            phase(index, exchanging);
+            return;
+        }
+        auto start = clock::now();
+        phase(index, exchanging);
+        elapsed += clock::now() - start;
+    }, [&] { m_executor.combine_globals(call); });
+
+    if (!timed)
+        return std::nullopt;
+    return static_cast<float>(std::chrono::duration<double, std::micro>(elapsed).count());
+}
+
+// --- Plain and atomics ---
+
+op::rt::loop::Prepared Simple::prepare(const op::rt::loop::Call&, op::rt::loop::Urgency,
+                                       op::rt::loop::KernelKind) {
+    return op::rt::loop::Prepared::ready();
+}
+
+std::optional<float> Simple::run(const op::rt::loop::Prepared&, const op::rt::loop::Call& call,
+                                 bool timed) {
+    m_executor.begin_call(call);
+    const auto& sections = call.sections;
+    return run_phases(call, timed, sections.phases(), [&](int section, bool exchanging) {
+                          split(sections[section].begin, sections[section].end, nullptr,
+                                call.args, exchanging);
+                      });
+}
+
+// --- Colouring ---
+
+op::rt::loop::Prepared Colouring::prepare(const op::rt::loop::Call& call,
+                                          op::rt::loop::Urgency, op::rt::loop::KernelKind) {
+    const auto& colouring = m_plans.get(call, [&] {
+        op::rt::plan::PlanKey key{"colouring", call};
+        return m_executor.backend().colouring_plans.get(key, [&] {
+            auto plan = std::make_shared<op::rt::plan::SetColouring>(
+                op::rt::plan::colour_set(call.args, call.sections));
+            if (OP_diags > 3)
+                op_printf("%s: %s %d colours, %d over owned elements\n", m_name.c_str(),
+                          m_executor.name(), plan->colours, plan->owned_colours);
+            return plan;
+        });
+    });
+    return op::rt::loop::Prepared::ready(&colouring);
+}
+
+std::optional<float> Colouring::run(const op::rt::loop::Prepared& prepared,
+                                    const op::rt::loop::Call& call, bool timed) {
+    const auto& colouring = *static_cast<const op::rt::plan::SetColouring *>(prepared.entry);
+    m_executor.begin_call(call);
+    // The core's colours come first, and run while the halo arrives.
+    return run_phases(call, timed, colouring.phases(), [&](int colour, bool exchanging) {
+                          split(colouring.offsets[static_cast<std::size_t>(colour)],
+                                colouring.offsets[static_cast<std::size_t>(colour) + 1],
+                                colouring.order.data(), call.args, exchanging);
+                      });
+}
+
+std::string Colouring::statistics(const op::rt::loop::Prepared& prepared) const {
+    const auto& colouring = *static_cast<const op::rt::plan::SetColouring *>(prepared.entry);
+    return std::to_string(colouring.colours) + " colours";
+}
+
+// --- The chunked strategies ---
+
+// The configuration's plan, the shared one when another strategy holds the
+// same: the same planner, call shape, chunk size and variant.
+const ChunkResult& ChunkBase::entry_for(const op::rt::loop::Call& call) {
+    return m_plans.get(call, [&] {
+        op::rt::plan::PlanKey key{m_family.name, call};
+        key.add(m_chunk_size);
+        add_key(key);
+        return m_executor.backend().chunk_plans.get(key, [&] {
+            auto entry = std::make_shared<ChunkResult>(make_plan(call));
+            if (OP_diags > 3) {
+                if (!*entry)
+                    op_printf("%s: %s rejected (%s, compression %.2fx)\n", m_name.c_str(),
+                              m_executor.name(), std::string{entry->rejected}.c_str(),
+                              entry->compression);
+                else
+                    op_printf("%s: %s %s\n", m_name.c_str(), m_executor.name(),
+                              entry->plan->figures().c_str());
+            }
+            return entry;
+        });
+    });
+}
+
+op::rt::loop::Prepared ChunkBase::prepare(const op::rt::loop::Call& call,
+                                          op::rt::loop::Urgency, op::rt::loop::KernelKind) {
+    const auto& entry = entry_for(call);
+    if (!entry)
+        return op::rt::loop::Prepared::unavailable(entry.rejected, &entry);
+    return op::rt::loop::Prepared::ready(&entry);
+}
+
+std::optional<float> ChunkBase::run(const op::rt::loop::Prepared& prepared,
+                                    const op::rt::loop::Call& call, bool timed) {
+    const auto& entry = *static_cast<const ChunkResult *>(prepared.entry);
+    const auto& plan = *entry.plan;
+    const auto& sections = call.sections;
+    m_executor.begin_call(call);
+    m_executor.reserve_scratch(plan.max_scratch_bytes);
+
+    abi::cpu::Chunk chunks = m_executor.chunks();
+    chunks.chunk_order = plan.batches.order.empty() ? nullptr : plan.batches.order.data();
+    chunks.chunk_offsets = plan.chunks.offsets.data();
+    chunks.staging = {plan.staging.stride, plan.stage_words.data(),
+                     plan.staging.slot_offsets.data(), plan.staging.slot_targets.data()};
+
+    return run_phases(call, timed, sections.phases(), [&](int section, bool exchanging) {
+                          chunks.progress = m_executor.progress(exchanging);
+                          chunks.batches = plan.batches.batches(section);
+                          if (chunks.batches == 0)
+                              return;
+                          chunks.batch_offsets =
+                              plan.batches.batch_offsets.data() +
+                              plan.batches.section_batches[static_cast<std::size_t>(section)];
+                          m_family.chunks(chunks, call.args.data());
+                      });
+}
+
+ChunkResult ChunkAtomics::make_plan(const op::rt::loop::Call& call) const {
+    return plan_chunk_atomics(call.args, call.sections, m_family.groups, m_chunk_size,
+                              m_executor.backend().options.min_compression);
+}
+
+void ChunkAtomics::add_key(op::rt::plan::PlanKey& key) const {
+    key.add(m_family.groups).add(m_executor.backend().options.min_compression);
+}
+
+ChunkResult ChunkColouring::make_plan(const op::rt::loop::Call& call) const {
+    return plan_chunk_colouring(call.args, call.sections, m_chunk_size);
+}
+
+std::string ChunkBase::statistics(const op::rt::loop::Prepared& prepared) const {
+    const auto& entry = *static_cast<const ChunkResult *>(prepared.entry);
+    if (entry.plan == nullptr)
+        return std::string{entry.rejected};
+    return entry.plan->figures();
+}
+
+// --- Families ---
+
+std::span<const OfferedFamily> strategy_families() {
+    static const std::vector<OfferedFamily> families{
+        OfferedFamily::of<Simple>("plain"),
+        OfferedFamily::of<ChunkAtomics>("chunk_atomics", false),
+        OfferedFamily::of<Simple>("atomics", false),
+        OfferedFamily::of<ChunkColouring>("chunk_colouring"),
+        OfferedFamily::of<Colouring>("colouring"),
+    };
+    return families;
+}
+
+} // namespace op::rt::cpu

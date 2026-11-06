@@ -1,6 +1,8 @@
-from typing import Callable, Dict, List, Optional, Set, Tuple
+import itertools
 
-from clang.cindex import Cursor, CursorKind, SourceRange
+from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple
+
+from clang.cindex import Cursor, CursorKind, SourceRange, Token, TypeKind
 
 import op as OP
 from cpp.parser import sourceLocation
@@ -22,10 +24,6 @@ def hasRuntimeDim(loop: OP.Loop) -> bool:
         or (isinstance(arg, (OP.ArgGbl, OP.ArgInfo)) and arg.dim is None)
         for arg in loop.args
     )
-
-
-def tokenText(node: Cursor) -> str:
-    return " ".join(token.spelling for token in node.get_tokens())
 
 
 # The kernel's functions and types, each with a rewriter of its text.  A
@@ -68,6 +66,12 @@ def updateFunctionTypes(entities: List[Tuple[Entity, Rewriter]], replacement: Ca
     for entity, rewriter in filter(lambda e: isinstance(e[0], Function), entities):
         function_type_span = extentToSpan(next(entity.ast.get_tokens()).extent)
         rewriter.update(function_type_span, lambda s, entity=entity: replacement(s, entity))
+
+
+# Whether func is declared inline.
+def declaredInline(func: Function) -> bool:
+    specifiers = itertools.takewhile(lambda t: t.spelling != func.name, func.ast.get_tokens())
+    return any(t.spelling == "inline" for t in specifiers)
 
 
 def renameConsts(
@@ -229,6 +233,355 @@ def insertStrides(
 
         mapParam(entity, arg_idx, funcs, applyStride, dat.id, is_vec)
 
+# Route each increment of a matched argument through call(target, value),
+# and pass the argument as an op::rt::kernel::Ptr, which carries its stride.  An
+# increment is p[i] += e, p[i] -= e, ++p[i], p[i]--, p[i] = p[i] + e - f (a
+# chain of + and - led by p[i]) or p[i] = e + p[i] (*p for p[0]) as a
+# statement of its own; the argument may also be passed to a helper function
+# under the same rules.  Any other use of it is an error.  With hook, the
+# functions taking the argument are templates over it (the caller writes their
+# headers) and each call of one names it: the keys of those functions.
+def insertIncrements(
+    entity: Entity,
+    loop: OP.Loop,
+    entities: List[Tuple[Entity, Rewriter]],
+    match: Callable[[OP.Arg], bool],
+    call: str,
+    hook: Optional[str] = None,
+) -> Set[str]:
+    funcs = [e for e, _ in entities if isinstance(e, Function)]
+    rewriters = {e.key: r for e, r in entities if isinstance(e, Function)}
+
+    targets = argumentTargets(entity, loop, funcs, match)
+    for func in funcs:
+        for param_idx in sorted(targets.get(func.key, set())):
+            rewriteIncrements(func, rewriters[func.key], param_idx, targets, loop, call)
+
+    # A helper that takes an increment target takes nothing else there.
+    for func in funcs:
+        params = parameters(func)
+        for node in func.ast.walk_preorder():
+            callee = node.referenced if node.kind == CursorKind.CALL_EXPR else None
+            if callee is None or callee.get_usr() not in targets:
+                continue
+
+            if hook is not None:
+                name = stripImplicit(next(node.get_children()))
+                rewriters[func.key].update(extentToSpan(name.extent), lambda s: f"{s}<{hook}>")
+
+            for idx, arg in enumerate(node.get_arguments()):
+                arg = stripImplicit(arg)
+                if idx in targets[callee.get_usr()] and not (
+                    arg.kind == CursorKind.DECL_REF_EXPR
+                    and arg.referenced in params
+                    and params.index(arg.referenced) in targets.get(func.key, set())
+                ):
+                    raise OP.OpError(
+                        f"{func.name}: {callee.spelling} takes an OP_INC argument as its parameter {idx}, "
+                        f"so it may take nothing else there: {tokenText(node)}",
+                        sourceLocation(node, func.program),
+                        (loop.loc, f"in the op_par_loop of {loop.kernel}"),
+                    )
+
+    return set(targets)
+
+
+# Pass each matched argument as an op::rt::kernel::Ptr, which carries its stride,
+# through every helper it reaches.  A use is p[i], *p, or a pass to a helper
+# whose parameter is a Ptr there, which may take a raw pointer (a local
+# array, at stride 1) at another call; any other use of it is an error, and
+# so is a parameter an OP_READ argument reaches that does not point to const.
+def insertPtrs(
+    entity: Entity,
+    loop: OP.Loop,
+    entities: List[Tuple[Entity, Rewriter]],
+    match: Callable[[OP.Arg], bool],
+) -> None:
+    funcs = [e for e, _ in entities if isinstance(e, Function)]
+    rewriters = {e.key: r for e, r in entities if isinstance(e, Function)}
+
+    targets = argumentTargets(entity, loop, funcs, match)
+    read = argumentTargets(
+        entity, loop, funcs, lambda arg: match(arg) and getattr(arg, "access_type", None) == OP.AccessType.READ
+    )
+    for func in funcs:
+        for param_idx in sorted(targets.get(func.key, set())):
+            param = parameters(func)[param_idx]
+
+            def fail(node: Cursor, what: str, name: str = param.spelling, func: Function = func) -> None:
+                raise OP.OpError(
+                    f"{func.name}: argument {name} may only be indexed, but {what}: {tokenText(node)}",
+                    sourceLocation(node, func.program),
+                    (loop.loc, f"in the op_par_loop of {loop.kernel}"),
+                )
+
+            element = elementType(param)
+            if param_idx in read.get(func.key, set()) and element is not None and not element[1]:
+                raise OP.OpError(
+                    f"{func.name}: parameter {param.spelling} takes an OP_READ argument, "
+                    f"so it must point to const: {tokenText(param)}",
+                    sourceLocation(param, func.program),
+                    (loop.loc, f"in the op_par_loop of {loop.kernel}"),
+                )
+
+            for _, parents, use_index, _ in ptrUses(func, rewriters[func.key], param, targets, fail):
+                # &p[i] and &*p would be raw pointers without the stride.
+                outer = parents[enclosing(parents, use_index - 1)]
+                if outer.kind == CursorKind.UNARY_OPERATOR and operatorToken(outer).spelling == "&":
+                    fail(outer, "its element's address is taken")
+
+
+# The parameters each matched argument reaches, by function.
+def argumentTargets(
+    entity: Entity, loop: OP.Loop, funcs: List[Function], match: Callable[[OP.Arg], bool]
+) -> Dict[str, Set[int]]:
+    targets: Dict[str, Set[int]] = {}
+    for arg_idx, arg in enumerate(loop.args):
+        if match(arg):
+            mapParam(entity, arg_idx, funcs, lambda func, idx: targets.setdefault(func.key, set()).add(idx))
+
+    return targets
+
+
+# Retype param, a pointer, to an op::rt::kernel::Ptr of its element type, and
+# yield each use of it as an element, as (subscript or dereference, its
+# ancestors, its index among them, whether a dereference).  A pass to a
+# helper whose parameter is in targets is skipped; any other use fails, and
+# so do references in skip.
+def ptrUses(
+    func: Function,
+    rewriter: Rewriter,
+    param: Cursor,
+    targets: Dict[str, Set[int]],
+    fail: Callable[[Cursor, str], None],
+    skip: Set[int] = frozenset(),
+) -> Iterator[Tuple[Cursor, Tuple[Cursor, ...], int, bool]]:
+    element = elementType(param)
+    if element is None:
+        fail(param, "it is not a pointer")
+
+    name = param.spelling
+    rewriter.update(extentToSpan(param.extent), lambda _: f"op::rt::kernel::Ptr<{element[0]}> {name}")
+
+    for node, parents in walkWithParents(func.ast):
+        if node.kind != CursorKind.DECL_REF_EXPR or node.hash in skip:
+            continue
+        if node.referenced is None or node.referenced != param:
+            continue
+
+        use_index = enclosing(parents, len(parents) - 1)
+        target = parents[use_index]
+        if target.kind == CursorKind.CALL_EXPR:
+            callee = target.referenced
+            passed = {idx for idx, arg in enumerate(target.get_arguments()) if stripParens(arg)[0] == node}
+            if callee is None or not passed or not passed <= targets.get(callee.get_usr(), set()):
+                fail(target, "a call takes it")
+            continue
+
+        if target.kind == CursorKind.ARRAY_SUBSCRIPT_EXPR and stripParens(next(target.get_children()))[0] == node:
+            yield target, parents, use_index, False
+        elif target.kind == CursorKind.UNARY_OPERATOR and operatorToken(target).spelling == "*":
+            yield target, parents, use_index, True
+        else:
+            fail(target, "it is used as a pointer")
+
+
+# The type param points to and whether it is const, or None if param is no
+# pointer or array.  libclang keeps an array's const on the array, not on
+# its element type.
+def elementType(param: Cursor) -> Optional[Tuple[str, bool]]:
+    typ = param.type.get_canonical()
+    if typ.kind == TypeKind.POINTER:
+        return typ.get_pointee().spelling, typ.get_pointee().is_const_qualified()
+    if typ.kind in [TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY]:
+        const = typ.is_const_qualified()
+        return ("const " if const else "") + typ.element_type.spelling, const
+
+    return None
+
+
+def parameters(func: Function) -> List[Cursor]:
+    return [child for child in func.ast.get_children() if child.kind == CursorKind.PARM_DECL]
+
+
+def tokenText(node: Cursor) -> str:
+    return " ".join(token.spelling for token in node.get_tokens())
+
+
+# Every node below node with its ancestors, outermost first.
+def walkWithParents(node: Cursor, parents: Tuple[Cursor, ...] = ()) -> Iterator[Tuple[Cursor, Tuple[Cursor, ...]]]:
+    for child in node.get_children():
+        yield child, parents + (node,)
+        yield from walkWithParents(child, parents + (node,))
+
+
+# The index in parents of the nearest ancestor from index up that is more
+# than an implicit conversion or parentheses.
+def enclosing(parents: Tuple[Cursor, ...], index: int) -> int:
+    while parents[index].kind in [CursorKind.UNEXPOSED_EXPR, CursorKind.PAREN_EXPR]:
+        index -= 1
+
+    return index
+
+
+# node without implicit conversions and parentheses, and how many
+# parentheses it had.
+def stripParens(node: Cursor) -> Tuple[Cursor, int]:
+    levels = 0
+    while node.kind in [CursorKind.UNEXPOSED_EXPR, CursorKind.PAREN_EXPR]:
+        children = list(node.get_children())
+        if len(children) != 1:
+            break
+
+        levels += node.kind == CursorKind.PAREN_EXPR
+        node = children[0]
+
+    return node, levels
+
+
+# The leftmost term of a chain of + and -: as written, without parentheses,
+# the parentheses opened around the chain on the way to it, and the operator
+# after it (none if node is no such chain).
+def leftmostTerm(node: Cursor) -> Tuple[Cursor, Cursor, int, Optional[Token]]:
+    levels, op = 0, None
+    while True:
+        stripped, inner = stripParens(node)
+        if stripped.kind != CursorKind.BINARY_OPERATOR or operatorToken(stripped).spelling not in ["+", "-"]:
+            return node, stripped, levels, op
+
+        levels += inner
+        op = operatorToken(stripped)
+        node = next(stripped.get_children())
+
+
+def operatorToken(node: Cursor) -> Token:
+    tokens = list(node.get_tokens())
+    operand = next(node.get_children())
+
+    if node.kind == CursorKind.UNARY_OPERATOR:
+        return tokens[0] if tokens[0].extent.start.offset < operand.extent.start.offset else tokens[-1]
+
+    return next(token for token in tokens if token.extent.start.offset >= operand.extent.end.offset)
+
+
+# Whether statement discards the value of node, its child.
+def discarded(node: Cursor, statement: Cursor) -> bool:
+    children = list(statement.get_children())
+
+    if statement.kind in [CursorKind.COMPOUND_STMT, CursorKind.DEFAULT_STMT, CursorKind.LABEL_STMT]:
+        return True
+    if statement.kind == CursorKind.IF_STMT:
+        return node != children[0]
+    if statement.kind in [CursorKind.FOR_STMT, CursorKind.WHILE_STMT, CursorKind.CASE_STMT]:
+        return node == children[-1]
+    if statement.kind == CursorKind.DO_STMT:
+        return node == children[0]
+
+    return False
+
+
+def location(extent: SourceRange, end: bool = False) -> Location:
+    point = extent.end if end else extent.start
+    return Location(point.line, point.column)
+
+
+def rewriteIncrements(
+    func: Function, rewriter: Rewriter, param_idx: int, targets: Dict[str, Set[int]], loop: OP.Loop, call: str
+) -> None:
+    param = parameters(func)[param_idx]
+    name = param.spelling
+
+    def fail(node: Cursor, what: str) -> None:
+        raise OP.OpError(
+            f"{func.name}: OP_INC argument {name} may only be incremented, but {what}: {tokenText(node)}",
+            sourceLocation(node, func.program),
+            (loop.loc, f"in the op_par_loop of {loop.kernel}"),
+        )
+
+    consumed: Set[int] = set()
+    for target, parents, use_index, deref in ptrUses(func, rewriter, param, targets, fail, consumed):
+        index = enclosing(parents, use_index - 1)
+        expr = parents[index]
+        children = list(expr.get_children())
+        operator = expr.kind in [
+            CursorKind.BINARY_OPERATOR,
+            CursorKind.COMPOUND_ASSIGNMENT_OPERATOR,
+            CursorKind.UNARY_OPERATOR,
+        ]
+        op = operatorToken(expr) if operator else None
+        assigned = expr.kind != CursorKind.UNARY_OPERATOR and operator and stripParens(children[0])[0] == target
+
+        # Each edit: a span, its new text, and whether it replaces the span
+        # outright (dropping any other edit within it).
+        edits: List[Tuple[Span, str, bool]] = []
+        start = location(expr.extent)
+        insert = True
+
+        if assigned and op.spelling in ["+=", "-="]:
+            minus = op.spelling == "-="
+            edits.append((extentToSpan(op.extent), ", -(" if minus else ",", False))
+            suffix = "))" if minus else ")"
+        elif expr.kind == CursorKind.UNARY_OPERATOR and op.spelling in ["++", "--"]:
+            step = ", -1)" if op.spelling == "--" else ", 1)"
+            insert = op.extent.start.offset > target.extent.start.offset
+            edits.append((extentToSpan(op.extent), step if insert else f"{call}(", False))
+            suffix = None if insert else step
+        elif assigned and op.spelling == "=":
+            # x = x + a - b: drop "x +" (or just "x" before a "-"), keeping
+            # the parentheses opened on the way to it.  x = a + x: drop "+ x".
+            term, stripped, levels, term_op = leftmostTerm(children[1])
+            rhs = stripParens(children[1])[0]
+            rhs_op = operatorToken(rhs) if term_op is not None else None
+            last = list(rhs.get_children())[-1] if term_op is not None else None
+
+            if term_op is not None and tokenText(stripped) == tokenText(target):
+                upto = term_op if term_op.spelling == "+" else term
+                replaced = Span(location(op.extent), location(upto.extent, end=True))
+                edits.append((replaced, ", " + "(" * levels, True))
+                suffix = ")"
+                duplicate = stripped
+            elif rhs_op is not None and rhs_op.spelling == "+" and tokenText(stripParens(last)[0]) == tokenText(target):
+                edits.append((extentToSpan(op.extent), ",", False))
+                replaced = Span(location(rhs_op.extent), location(last.extent, end=True))
+                edits.append((replaced, ")", True))
+                suffix = None
+                duplicate = stripParens(last)[0]
+            else:
+                fail(expr, "it is assigned")
+
+            for ref in duplicate.walk_preorder():
+                if ref.kind == CursorKind.DECL_REF_EXPR and ref.referenced is not None and ref.referenced == param:
+                    consumed.add(ref.hash)
+        elif assigned:
+            fail(expr, "it is assigned")
+        else:
+            fail(expr, "it is read")
+
+        statement = index - 1
+        while parents[statement].kind == CursorKind.UNEXPOSED_EXPR:
+            statement -= 1
+        if not discarded(parents[statement + 1] if statement + 1 < index else expr, parents[statement]):
+            fail(expr, "the value of its increment is used")
+
+        if insert and deref and location(target.extent) == start:
+            edits.append((extentToSpan(target.extent), f"{call}({name}[0]", False))
+        else:
+            if insert:
+                edits.append((Span(start, start), f"{call}(", False))
+            if deref:
+                edits.append((extentToSpan(target.extent), f"{name}[0]", False))
+
+        if suffix is not None:
+            end = location(expr.extent, end=True)
+            edits.append((Span(end, end), suffix, False))
+
+        for span, text, replace in edits:
+            if replace:
+                rewriter.replace(span, text)
+            else:
+                rewriter.update(span, lambda _, text=text: text)
+
+
 def insertArgGblStrides(
     entity: Entity,
     rewriter: Rewriter,
@@ -250,6 +603,7 @@ def insertArgGblStrides(
             continue
 
         insertStride(entity.ast, rewriter, entity.parameters[arg_idx], 0, False, stride)
+
 
 def insertStride(
     ast: Cursor, rewriter: Rewriter, param: str, id: int, is_vec: bool, stride: Callable[[int], str]

@@ -90,7 +90,10 @@ The following code-generation targets are available for C/C++ applications (``.c
      - Code-generated sequential CPU implementation. Produces a single ``op2_kernels.cpp``. Preferable to the development sequential build for accurate benchmarking.
    * - ``openmp``
      - ``openmp``
-     - Multi-threaded CPU implementation using OpenMP. Produces ``op2_kernels.cpp`` with OpenMP pragmas. Set ``OMP_NUM_THREADS`` at runtime to control thread count.
+     - Multi-threaded CPU implementation over OpenMP host threads. Produces ``op2_kernels.cpp``. Each loop carries a body for every execution strategy it can run (plain, atomics, colouring, chunked atomics, chunked colouring), chosen at run time. Set ``OMP_NUM_THREADS`` at runtime to control thread count.
+   * - ``openmp_legacy``
+     - ``openmp_legacy``
+     - Multi-threaded CPU implementation from the legacy templates, using OpenMP pragmas, ``op_plan`` colouring and optional SIMD vectorisation.
    * - ``cuda``
      - ``cuda``
      - Ahead-of-time compiled NVIDIA GPU implementation using CUDA. Produces ``op2_kernels.cu`` compiled offline by ``nvcc`` during the application build. Requires ``CUDA_INSTALL_PATH`` and ``NV_ARCH`` to be set.
@@ -130,8 +133,8 @@ The following targets are available for Fortran applications:
      - Description
    * - ``seq``
      - Code-generated sequential Fortran implementation. Produces a ``master_kernel.F90`` containing all loop host subroutines.
-   * - ``openmp``
-     - Multi-threaded Fortran implementation using OpenMP pragmas. Includes optional SIMD vectorisation of indirect loops.
+   * - ``openmp_legacy``
+     - Multi-threaded Fortran implementation from the legacy templates, using OpenMP pragmas. Includes optional SIMD vectorisation of indirect loops.
    * - ``cuda``
      - Native Fortran CUDA implementation using CUDA Fortran (``.CUF``). Device kernels are written in Fortran with ``attributes(device)`` annotations. Requires a CUDA Fortran-capable compiler (NVHPC).
    * - ``c_seq``

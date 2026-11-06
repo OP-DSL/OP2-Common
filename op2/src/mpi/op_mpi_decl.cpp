@@ -35,6 +35,7 @@
  * of the mpi back-end
  */
 
+#include <op2/rt/lifecycle.h>
 #include <mpi.h>
 #include <op2/env.h>
 #include <op2/mpi/halo.h>
@@ -66,6 +67,7 @@ static void init_parts(int argc, char **argv, int diags, MPI_Comm world, MPI_Com
   OP_MPI_GLOBAL = global;
   op_init_core(argc, argv, diags);
   op_renumber_init();
+  op::rt::init_cpu();
   op_mpi_halo_exchanges_init();
   op::env::finish();
 }
@@ -78,7 +80,9 @@ void op_init(int argc, char **argv, int diags) {
   int flag = 0;
   MPI_Initialized(&flag);
   if (!flag) {
-    MPI_Init(&argc, &argv);
+    // The OpenMP backend's calling thread tests halo exchanges in its regions.
+    int provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
   }
   init_parts(argc, argv, diags, MPI_COMM_WORLD, MPI_COMM_WORLD);
 }
@@ -237,6 +241,13 @@ void op_print(const char *line) {
 }
 
 void op_exit() {
+  {
+    int rank = 0, ranks = 1;
+    MPI_Comm_rank(OP_MPI_WORLD, &rank);
+    MPI_Comm_size(OP_MPI_WORLD, &ranks);
+    op::rt::finalise(rank, ranks);
+  }
+
   op_mpi_exit();
   op_rt_exit();
   op_exit_core();
