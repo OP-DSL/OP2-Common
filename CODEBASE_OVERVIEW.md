@@ -12,6 +12,7 @@
 3. [Core Runtime Library](#3-core-runtime-library)
    - [Public Headers](#31-public-headers)
    - [Backend Sources](#32-backend-sources)
+   - [Loop Runtime](#33-loop-runtime)
 4. [Public API Reference](#4-public-api-reference)
 5. [Build System](#5-build-system)
    - [Environment Variables](#51-environment-variables)
@@ -56,9 +57,10 @@ OP2 targets production-grade CFD/scientific computing applications such as [Roll
 ```
 OP2-Common/
 ├── op2/                    # Core runtime library
-│   ├── include/            # Flat headers (the C API); op2/ the newer tree
+│   ├── include/            # Flat headers (the C API); op2/ the newer tree, rt/ in it the loop runtime
 │   └── src/                # Runtime source code (all backends)
 │       ├── core/           # Global state, set/map/dat management, execution plans
+│       ├── rt/             # The loop runtime: loop, plan, cpu
 │       ├── sequential/     # Sequential backend
 │       ├── openmp/         # OpenMP backend
 │       ├── cuda/           # CUDA backend
@@ -108,7 +110,6 @@ include directory, so both spellings work in the source tree and installed.
 | `op_lib_cpp.h` | C++ template API (`op_decl_dat<T>`, `op_par_loop` with typed overloads) |
 | `op_seq.h` | Sequential/MPI-sequential `op_par_loop` inline implementation |
 | `op_rt_support.h` | Runtime plan data structures and low-level plan API |
-| `op_openmp_rt_support.h` | OpenMP-specific execution plan functions (`op_plan_get`) |
 | `op_cuda_rt_support.h` | CUDA runtime functions (device init, memory allocation/transfer) |
 | `op_cuda_reduction.h` | GPU reduction templates using shared memory (INC, MAX, MIN, WRITE) |
 | `op_lib_mpi.h` | MPI-only application API (HDF5 declarations); includes `op_mpi_core.h` |
@@ -119,6 +120,7 @@ include directory, so both spellings work in the source tree and installed.
 | `op2/mpi/comm.h` | Internal: the sparse data exchange (`op::mpi::sparse::exchange`, NBX) the MPI layer builds its lists with |
 | `op2/mpi/exchange.h`, `exchange_backend.h` | Internal (`op::mpi`): the halo exchange's gather/scatter specs, shared by the host and device backends |
 | `op2/renumber/` | `op::renumber`: RCM, Sloan and Hilbert-curve orderings for `op_renumber` |
+| `op2/rt/` | The loop runtime the generated code builds on (3.3) |
 | `op_hdf5.h` | Parallel HDF5 I/O API |
 | `op_profile.h` | Tree-based timing instrumentation (JSON output, 4 detail levels) |
 | `op_util.h` | Utility functions |
@@ -146,6 +148,23 @@ include directory, so both spellings work in the source tree and installed.
 | `mpi/op_mpi_cuda_unified_kernels.cu` | Device gather/scatter for the halo exchange: one kernel each per exchange |
 | `externlib/` | Bundled external libraries |
 | `fortran/` | Fortran interop wrapper layers |
+| `rt/` | The loop runtime (3.3) |
+
+### 3.3 Loop Runtime (`op2/include/op2/rt/`, `op2/src/rt/`)
+
+What generated code compiles against and calls to run its loops, in
+`op::rt`. It depends on the rest of the library; the rest includes only
+`op2/rt/lifecycle.h` from it, to start it in `op_init`, release it in
+`op_exit` and write its reports in `op_profile_output`
+(`scripts/check_rt_layering.sh` checks this).
+
+| Directory | Namespace | Description |
+|---|---|---|
+| `rt/kernel/` | `op::rt::kernel` | What a translated kernel compiles against (`Ptr`, `Span`, the Fortran intrinsics, the increment hooks, the staging helpers), also embedded as text for the JIT |
+| `rt/loop/` | `op::rt::loop` | Backend neutral: a loop's strategies, the ladder and autotuner, the JIT's policy, parameters and build cache, the reports |
+| `rt/plan/` | `op::rt::plan` | Hardware-free planning building blocks: set colouring, chunks, staging |
+| `rt/cpu/` | `op::rt::cpu` | The OpenMP backend: strategies, chunk plans, the executor a loop is made with |
+
 
 ---
 

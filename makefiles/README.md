@@ -61,8 +61,8 @@ This directory contains makefiles corresponding to each library dependency of OP
 These are generic makefiles that define a complete set of build rules for the common source structures found in the apps. The variants that will be built depend on the available compilers and compiler features. All of the possible variants currently are:
  * `seq`: Basic sequential variant that simply links with the OP2 libraries without code translation.
  * `genseq`: Translated sequential variant.
- * `vec`: A sequential variant with OpenMP SIMD vectorisation pragmas.
- * `openmp`: A multi-threaded variant using OpenMP pragmas.
+ * `openmp` (C++): A multi-threaded variant over OpenMP threads, choosing each loop's execution strategy at run time.
+ * `openmp_legacy`: A multi-threaded variant from the legacy templates, using OpenMP pragmas.
  * `cuda`: A multi-threaded variant using NVIDIA CUDA.
  * `mpi_<variant>`: Many-core MPI variants of all other variants.
 

@@ -39,10 +39,37 @@ An alternative **two-level colouring** strategy (``color2`` mode) is also availa
 
 The strategy is selected at code-generation time; the default is ``atomics=True, color2=False``.
 
+The OpenMP target (``openmp``) instead generates a body for every strategy a loop can run and chooses among them at run time, as the next section describes.
+
 Renumbering
 ~~~~~~~~~~~
 
 Breaking the execution set into contiguous blocks is good for direct datasets (they will be in contiguous memory, giving coalesced transfers), but for indirect datasets each mini-partition should ideally reference elements held close together in graphics memory.  OP2 therefore provides an optional renumbering step — for example, recursive coordinate bisection — to improve data locality so that neighbouring elements have proximate memory locations.
+
+Loop Strategies
+---------------
+
+The ``openmp`` target runs each loop through a layer of its own, in four parts (headers in ``op2/include``, sources under ``op2/src`` in the same directories; ``op2/include/README.md`` lists every header):
+
+``loop/``
+    Backend-neutral control.  A loop's *ladder* holds its strategies in order, runs the first that is enabled and ready for a call's *configuration* (its set, run size and arguments), and falls back to the last.  The *autotuner* times every candidate for a configuration under ``OP_AUTOTUNE``.  The JIT's policy decides when a kernel is specialised on the values a loop's parameters take and which stay at run time, and caches the built kernels.  A strategy's offline and JIT kernels are two *candidates*: its backend estimates their cost, and the ladder orders them from those estimates alone, so hardware facts stay in the backends; a JIT kernel still building passes the call to the next candidate.  The tuner times every candidate once the JIT's parameter modes for the configuration have settled.
+
+``plan/``
+    Algorithms with no device knowledge: the set colouring, the chunks of a call's sections and their targets, coloured batches and the wavefront order, and the staging of a chunk's targets in scratch slots.
+
+``cpu/``
+    The OpenMP *backend*: it composes the planning blocks under its own limits and encodings (``op2/rt/cpu/chunk_plan.h``), declares its strategy families and their axes as ``op_init`` runs, and runs the kernels over host threads.
+
+``kernel/``
+    What a translated kernel compiles against, offline or JIT: ``prelude.h`` (the pointer and array wrappers and the Fortran intrinsics), ``inc.h`` (the increments and the hooks a kernel is instantiated with, ``PlainInc`` and ``AtomicInc``) and ``staging.h`` (the chunked strategies' staging helpers).
+
+The translator emits, per loop, the translated kernel once; a body per strategy; and a registration of every valid strategy and its argument groups; the runtime does the rest.  A kernel that takes an indirect ``OP_INC`` argument is a template over its increment hook, ``op2_inc``, as is each helper the argument reaches: each increment of the argument becomes an ``op2_inc::add`` call, and each strategy's body instantiates the kernel with its hook, in place or atomic.
+
+Terms that mean more than one thing elsewhere:
+
+* **backend**: in this layer, the code under ``cpu/``; the halo exchanges' *transport* (MPI with host staging or GPU-direct) is separate.
+* **variant**: a build of an application for one target (``airfoil_openmp``, ``airfoil_mpi_genseq``), as the build systems use it; the autotuner instead tries *candidates*, a strategy (one value of each of its family's axes) with one of its kernels.
+* **strategy** / **family**: what ``OP_STRATEGY`` and ``OP_<STRATEGY>`` name (``chunk_atomics``), and the user documentation calls a strategy, is a *family* in the code; the family's strategies are its points on its axes (``chunk_atomics=on;chunk_size=256``).
 
 Plan Construction (``op_plan_core``)
 --------------------------------------
