@@ -10,12 +10,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Translator targets renamed (CMake variants and executables follow; the translator rejects an old name, naming its replacement):
+
+  | Language | Old | New |
+  |---|---|---|
+  | C++ | `c_cuda`, `c_hip` (JIT) | `cuda`, `hip` |
+  | C++ | `cuda`, `hip` (legacy templates) | `cuda_legacy`, `hip_legacy` |
+  | C++ | `openmp` (legacy templates) | `openmp_legacy` |
+  | Fortran | `c_seq`, `c_openmp`, `c_cuda`, `c_hip` | `seq_f2c`, `openmp_f2c`, `cuda_f2c`, `hip_f2c` |
+  | Fortran | `cuda` (CUDA Fortran) | `cuda_legacy` |
+  | Fortran | `openmp` (legacy templates) | `openmp_legacy` |
+
+  Hydra's constant-list headers keep their names (`hydra_const_list_c_cuda.cuh` and so on).
+- The C++ `cuda` and `hip` targets generate a kernel for every execution strategy a loop can run (`plain`, `atomics`, `colouring`, and the JIT-only `chunk_atomics` and `chunk_colouring`), chosen at run time as for `cuda_f2c` and `hip_f2c`, where they used one strategy fixed at translation. Each increment of an indirect `OP_INC` argument goes through the kernel's increment hook (`op2_inc::add`: the kernel is a template over the hook, and each strategy instantiates it in place or atomic; `atomics` is now an atomic add per increment, not a per-element accumulator). Any other use of such an argument, such as an assignment or a read, fails translation: declare it `OP_RW` or `OP_WRITE` (`apps/c/reduction` now declares `res_calc`'s assigned argument `OP_WRITE`).
+- The C++ `openmp` target runs each loop over OpenMP threads as `openmp_f2c` does, from the same template: a body for every execution strategy a loop can run, chosen at run time, its kernel taking every argument as an `op::rt::kernel::Ptr` and each indirect increment through its increment hook. The legacy templates' target is `openmp_legacy` in both languages; Fortran has no `openmp`. The GNU Make builds gain `openmp_f2c` for Fortran.
+- Newer headers live in an `op2/` tree under the include directory, included by path (`<op2/rt/gpu/executor.h>`), its path below `op2/` its namespace below `op::`; the loop runtime is `op2/rt` (`op::rt`). The flat headers (`<op_seq.h>`) are unchanged, and `include/op2` still mirrors `op2/include`, so the one include directory serves both.
 - The translator reports a mistake in the application's sources as `file:line:col: error: ...` at the statement, with its `op_par_loop` as a note, and rejects more: an `OP_READ` argument that reaches a kernel parameter that is not a pointer to const, one dat passed with two types or dims, a kernel that calls a function template or a helper in a named namespace. It needs Python 3.9.
-- The C++ `openmp` target runs each loop over OpenMP threads: a body for every execution strategy a loop can run, chosen at run time, its kernel taking every argument as an `op::rt::kernel::Ptr` and each indirect increment through its increment hook. Any other use of an indirect `OP_INC` argument fails translation: declare it `OP_RW` or `OP_WRITE` (`apps/c/reduction` now declares `res_calc`'s assigned argument `OP_WRITE`). The legacy templates' target is `openmp_legacy` in both languages.
-- Newer headers live in an `op2/` tree under the include directory, included by path (`<op2/rt/cpu/executor.h>`), its path below `op2/` its namespace below `op::`; the loop runtime is `op2/rt` (`op::rt`). The flat headers (`<op_seq.h>`) are unchanged, and `include/op2` still mirrors `op2/include`, so the one include directory serves both.
 - A dat argument whose dim or element size differs from its dat's stops the run, where it read the wrong data (MG-CFD declared an `int` scratch dat with `sizeof(double)` elements).
+- The JIT bakes a parameter in while it takes at most `OP_JIT_MAX_VALUES` values (8) for a loop configuration, and builds a kernel once its values have been asked for `OP_JIT_MIN_CALLS` times (8), so a slowly changing value costs a bounded number of builds.
 - The OpenMP backend tests an outstanding halo exchange every `OP_MPI_TEST_INTERVAL` elements (1024) its calling thread runs of a loop's core, so an MPI that progresses only inside its calls (Cray MPICH) overlaps the exchange; `op_init` initialises MPI at `MPI_THREAD_FUNNELED`.
-- Testing runs through CTest alone. With `-DOP2_ENABLE_APP_TESTS=ON` the example apps (airfoil, aero, and MG-CFD from a checkout named by `OP2_TEST_MGCFD_DIR`) run every variant to their own validation against downloaded meshes, label `apps`. The GitHub workflows and the Jenkins pipelines configure with CMake and run `ctest`; the bash harness under `tests/bash` and the functional tests' Makefiles are gone. The functional tests build only the families that test something (SoA on the GPU variants only).
+- Testing runs through CTest alone. With `-DOP2_ENABLE_APP_TESTS=ON` the example apps (airfoil, aero, and MG-CFD from a checkout named by `OP2_TEST_MGCFD_DIR`) run every variant to their own validation against downloaded meshes, label `apps`. The GitHub workflows and the Jenkins pipelines configure with CMake and run `ctest`; the bash harness under `tests/bash` and the functional tests' Makefiles are gone. The functional tests build only the families that test something (SoA on the GPU variants only) and run a JIT variant's JIT kernels compiled on their first call.
 
 ---
 

@@ -5,13 +5,34 @@ lives under `src/`.  Two kinds sit side by side:
 
 - the flat headers (`op_lib_core.h`, `op_seq.h`, ...), the long-standing C
   API, included by name (`#include <op_seq.h>`);
-- the `op2/` tree, included by its path (`#include <op2/env.h>`), whose
-  path below `op2/` is its namespace below `op::`; a namespace with one
-  header may be that file (`op2/env.h` is `op::env`).
+- the `op2/` tree, included by its path
+  (`#include <op2/rt/gpu/executor.h>`), whose path below `op2/` is its
+  namespace below `op::`: `op2/rt/gpu/executor.h` declares into
+  `op::rt::gpu`, and a namespace with one header may be that file
+  (`op2/env.h` is `op::env`, `op2/rt/lifecycle.h` is `op::rt`).
 
 This directory installs as `include/op2`, the package's one include
 directory, so both spellings work the same in the source tree and once
-installed (the `op2/` tree as `include/op2/op2/`).
+installed (the `op2/` tree as `include/op2/op2/`).  `op2/rt/` is the loop
+runtime, what generated code compiles against and calls to run its loops,
+and is layered by where it is compiled:
+
+- `op2/rt/abi/` is the contract between the generated code and the
+  library: the descriptors a loop describes itself with, the records a
+  launch or an OpenMP region is given, and the entry points.  It includes
+  nothing else of `op2/rt/`;
+- `op2/rt/kernel/` is compiled into op2_kernels, the generated code, and
+  never into a library: the skeletons each strategy family runs, filled with
+  the generated hooks, the helpers they share, and the calls on what the
+  application compiled, its offline kernels' launches and its `__constant__`
+  symbols.  It includes only `op2/rt/abi/` and itself;
+- the rest of `op2/rt/` is the library's: declarations, templates and
+  one-line accessors, defined under `src/rt/`, which never include
+  `op2/rt/kernel/`.  The generated code includes from `op2/rt/` only
+  `op2/rt/abi/` and `op2/rt/kernel/`.
+
+The rest of the library includes from `op2/rt/` only `op2/rt/lifecycle.h`.
+`scripts/check_rt_layering.sh`, the `rt_layering` test, checks each rule.
 
 A header is header-only unless its entry names where its definitions are.
 `includes:` lists a header's direct includes from this directory.
@@ -35,18 +56,11 @@ SafeLong.h      (a long long whose lossy conversions and division by zero
 op_seq.h   (auto-generated, includes: op_lib_cpp.h)
 ```
 
-#### OpenMP layer
-```
-op_openmp_rt_support.h (includes: op_rt_support.h; op_plan_get for the
-                        OpenMP targets)
-```
-
 #### CUDA layer
 ```
-op_gpu_shims.h       (gpu* aliases over the CUDA or HIP runtime)
-op_cuda_rt_support.h (includes: op_gpu_shims.h, op_lib_core.h,
+op_cuda_rt_support.h (includes: op2/gpu/shims.h, op_lib_core.h,
                       op_rt_support.h)
-op_cuda_reduction.h  (includes: op_gpu_shims.h; kept apart for the Fortran
+op_cuda_reduction.h  (includes: op2/gpu/shims.h; kept apart for the Fortran
                       layer)
 ```
 
@@ -80,19 +94,11 @@ fortran/op2_reference_macros.h  (the argument-list macros the reference
                                  loops, C and Fortran, expand)
 ```
 
-#### Fortran-to-C kernels (c_seq, c_cuda, c_hip)
-```
-op_f2c_prelude.h  (op::f2c: the arrays and intrinsics the translated kernels
-                   compile against)
-op_f2c_helpers.h  (includes: extern/rapidhash.h, op_profile.h,
-                   op_gpu_shims.h; the c_cuda and c_hip JIT)
-```
-
 #### Third party
 ```
 extern/json.hpp      (nlohmann JSON, for op_profile's JSON output)
 extern/incbin.h      (binary inclusion, for the JIT's embedded headers)
-extern/rapidhash.h   (rapidhash, for JIT parameter values)
+extern/rapidhash.h   (rapidhash, for call keys and JIT parameter values)
 ```
 
 ### The op2/ tree
@@ -103,6 +109,9 @@ op2/env.h        (op::env: the environment variables' parser: every layer
                   reads its own through it as op_init runs, and op_init warns
                   about any OP_ variable nothing read; from
                   src/core/op_env.cpp)
+op2/gpu/shims.h  (gpu* aliases over the CUDA or HIP runtime)
+op2/gpu/check.h  (includes: op2/gpu/shims.h; GPU_CHECK, which stops the
+                  program on a failed runtime, driver or compiler call)
 ```
 
 #### MPI (op::mpi, sources under src/mpi)
@@ -173,6 +182,26 @@ op2/rt/abi/descriptor.h      (what any backend's descriptor holds: the loop
 op2/rt/abi/staging.h         (the 16-bit stage word both backends' staged
                               kernels read a slot as: the slot limit and the
                               unstaged word; no includes)
+op2/rt/abi/gpu/launch.h      (includes: op2/rt/abi/staging.h; the CUDA and
+                              HIP launch records, a range's and a chunk
+                              batch's, as X-macro field lists: the library
+                              fills a record and pushes its fields, a kernel
+                              takes them as its first parameters
+                              (OP_ABI_GPU_PARAM) and hands them on
+                              (OP_ABI_GPU_ARG); the default block size)
+op2/rt/abi/gpu/descriptor.h  (includes: op_lib_core.h,
+                              op2/rt/abi/descriptor.h,
+                              op2/rt/abi/gpu/launch.h; a loop as the CUDA and
+                              HIP code describes it: its families' offline
+                              kernels and JIT sources, its parameters with
+                              their device side (a __constant__ symbol, its
+                              shared hash, by value) and the values a
+                              strategy fixes, by launch-value slot, the
+                              binder of its
+                              arguments, the calls on what the application
+                              compiled, an offline kernel's resources among
+                              them, and the embedded JIT headers; invoke,
+                              from src/rt/gpu/op_gpu_executor.cpp)
 op2/rt/abi/cpu/launch.h      (includes: op2/rt/abi/staging.h; the OpenMP
                               records, a range's and a chunk batch's, and a
                               thread's own part: its globals and scratch)
@@ -205,6 +234,37 @@ op2/rt/kernel/staging.h        (includes: op2/rt/abi/staging.h,
                                 carved, cleared or seeded, and stored or
                                 flushed to their targets, on the host and the
                                 device)
+op2/rt/kernel/gpu/device.h     (includes: op2/rt/kernel/prelude.h; what the
+                                skeletons and hooks share on the device: the
+                                block size as a function a kernel inlines
+                                reads it, and opaque)
+op2/rt/kernel/gpu/params.h     (includes: op2/rt/kernel/prelude.h; how a
+                                kernel has its parameters, baked in by the
+                                JIT or given at run time, and small arrays
+                                by value)
+op2/rt/kernel/gpu/range.h      (includes: op2/rt/kernel/gpu/device.h,
+                                op2/rt/kernel/prelude.h; the plain, atomics
+                                and colouring kernels' grid-stride walk of a
+                                range, with the element hook)
+op2/rt/kernel/gpu/chunk.h      (includes: op2/rt/abi/gpu/launch.h,
+                                op2/rt/kernel/gpu/device.h,
+                                op2/rt/kernel/gpu/wavefront.h,
+                                op2/rt/kernel/prelude.h; chunk_atomics,
+                                chunk_colouring and its parallel variant over
+                                a batch of chunks, with the stage, element and
+                                write hooks)
+op2/rt/kernel/gpu/wavefront.h  (includes: op2/rt/kernel/gpu/device.h,
+                                op2/rt/kernel/prelude.h; chunk_colouring's
+                                wavefront primitives)
+op2/rt/kernel/gpu/offline.h    (includes: op2/rt/abi/descriptor.h,
+                                op2/rt/abi/gpu/descriptor.h,
+                                op2/rt/kernel/prelude.h; an offline
+                                kernel's resources and launches and the device
+                                addresses of the application's symbols, made
+                                with the runtime that registered them)
+op2/rt/kernel/gpu/jit_embed.h  (includes: extern/incbin.h; embeds the device
+                                headers as text for the JIT, in include
+                                order; define OP_KERNEL_JIT_TAG first)
 op2/rt/kernel/cpu/range.h      (includes: op2/rt/abi/cpu/launch.h; the
                                 OpenMP region over a range, a contiguous
                                 share per thread)
@@ -338,6 +398,88 @@ op2/rt/plan/cache.h          (includes: extern/rapidhash.h,
                               once explored)
 op2/rt/plan/greedy_colour.h  (includes: op_lib_core.h; internal to the
                               planners: the greedy colouring they share)
+```
+
+#### CUDA and HIP backend (op::rt::gpu, sources under src/rt/gpu)
+Internal to the library: the generated code reaches it through
+`op2/rt/abi/gpu/descriptor.h`.
+```
+op2/rt/gpu/options.h       (the run-wide options, the JIT mechanism's,
+                            the wavefront window and chunk_atomics' least
+                            compression, and the device's facts)
+op2/rt/gpu/backend.h       (includes: op2/rt/context.h,
+                            op2/rt/gpu/heuristics.h, op2/rt/gpu/options.h,
+                            op2/rt/plan/cache.h; the backend's part of the
+                            run's context: its options, the device's facts,
+                            the heuristics' options and the plans its loops
+                            share, made by op_init, which declares the GPU
+                            families; from src/rt/gpu/op_gpu_init.cpp)
+op2/rt/gpu/layout.h        (includes: op_lib_core.h, op_rt_support.h; the
+                            device data layout the kernels index by: the
+                            warp pitch, a loop's per-element arrays' stride
+                            and a SoA dat's)
+op2/rt/gpu/upload.h        (includes: op2/gpu/check.h, op2/gpu/shims.h; a
+                            plan's host arrays copied to the device and freed
+                            there)
+op2/rt/gpu/heuristics.h    (includes: op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/loop/strategy.h; the models of what pays
+                            on the device: the defaults the families' axes
+                            start from, and what turns what the backend
+                            knows of a strategy's kernels into its
+                            estimates, the register rule first, with
+                            OP_JIT_MIN_REGISTERS; from
+                            src/rt/gpu/op_gpu_heuristics.cpp)
+op2/rt/gpu/executor.h      (includes: op_lib_core.h, op2/gpu/shims.h,
+                            op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/abi/gpu/launch.h, op2/rt/gpu/backend.h,
+                            op2/rt/gpu/jit.h, op2/rt/gpu/kernel.h,
+                            op2/rt/jit/params.h, op2/rt/loop/call.h,
+                            op2/rt/loop/ladder.h, op2/rt/loop/loop.h; the
+                            executor a loop is made with from a descriptor
+                            in the run's context: its parameters' device
+                            symbols, its compiler, a launch's arguments, a
+                            record's fields then the loop's, its halo
+                            exchanges and dirty bits on the device, and the
+                            call's device globals; from
+                            src/rt/gpu/op_gpu_executor.cpp)
+op2/rt/gpu/kernel.h        (includes: op2/gpu/shims.h,
+                            op2/rt/abi/gpu/descriptor.h, op2/rt/jit/params.h;
+                            a strategy's kernels, one compiled with the
+                            application and one built at run time, each
+                            launched the same way, and the device symbols
+                            the offline kernels read their parameters from;
+                            from src/rt/gpu/op_gpu_kernel.cpp)
+op2/rt/gpu/jit.h           (includes: op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/gpu/kernel.h, op2/rt/jit/params.h; the
+                            JIT mechanism: NVRTC or hipRTC compiles of the
+                            loop's translated kernel and a family's source
+                            after the embedded headers, its run-time parameters as
+                            wrapper arguments or module symbols; from
+                            src/rt/gpu/op_gpu_jit.cpp)
+op2/rt/gpu/chunk_plan.h    (includes: op2/rt/abi/staging.h,
+                            op2/rt/plan/chunks.h, op2/rt/plan/staging.h; the
+                            chunk plans under the device's limits: a block's
+                            elements, shared memory, slots as 16-bit stage
+                            words, 8-bit colours; from
+                            src/rt/gpu/op_gpu_chunk_plan.cpp)
+op2/rt/gpu/chunk_encode.h  (includes: op2/rt/abi/gpu/launch.h,
+                            op2/rt/gpu/chunk_plan.h; a chunk plan uploaded
+                            as the kernels read it, which fills a chunk
+                            launch's record and begins a wavefront call; from
+                            src/rt/gpu/op_gpu_chunk_encode.cpp)
+op2/rt/gpu/strategy.h      (includes: op_lib_core.h,
+                            op2/rt/abi/gpu/descriptor.h,
+                            op2/rt/abi/gpu/launch.h,
+                            op2/rt/gpu/chunk_encode.h,
+                            op2/rt/gpu/chunk_plan.h, op2/rt/gpu/executor.h,
+                            op2/rt/gpu/kernel.h, op2/rt/gpu/layout.h,
+                            op2/rt/jit/cache.h, op2/rt/loop/strategy.h,
+                            op2/rt/plan/cache.h, op2/rt/plan/colouring.h;
+                            the plain, atomics, colouring and chunked
+                            strategies, their axes, block size, unstaged
+                            singles and wavefront, their phases' launches,
+                            and the table of the families the backend
+                            offers; from src/rt/gpu/op_gpu_strategy.cpp)
 ```
 
 #### OpenMP backend (op::rt::cpu, sources under src/rt/cpu)
