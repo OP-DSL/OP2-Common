@@ -1,0 +1,193 @@
+// A kernel with more registers than a 1024-thread block leaves: without
+// launch bounds its specialised kernel cannot launch that block and is
+// unavailable (thread_limit); with them, as every generated kernel has, it
+// runs.
+
+#define OP_KERNEL_JIT_TAG jit_thread_limit_test
+#include <op2/rt/kernel/gpu/jit_embed.h>
+
+#include <op2/gpu/check.h>
+#include <op2/rt/context.h>
+#include <op2/rt/gpu/executor.h>
+#include <op2/rt/gpu/strategy.h>
+#include <op2/rt/kernel/gpu/offline.h>
+#include <op2/rt/lifecycle.h>
+#include <op_lib_c.h>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <span>
+#include <string>
+#include <vector>
+
+#include "../loop_parts.h"
+
+namespace {
+
+namespace gpu = op::rt::gpu;
+namespace loop = op::rt::loop;
+
+constexpr int width = 64;
+constexpr int elements = 4096;
+
+// The kernel after its declaration, with or without launch bounds.
+#define KERNEL_BODY R"op2(
+void thread_limit_kernel(OP_ABI_GPU_RANGE_FIELDS(OP_ABI_GPU_PARAM) double *out,
+                         const double *in) {
+    for (int e = begin + threadIdx.x + blockIdx.x * blockDim.x; e < end;
+         e += blockDim.x * gridDim.x) {
+        double a[64];
+#pragma unroll
+        for (int i = 0; i < 64; ++i)
+            a[i] = in[e + i * 4096];
+#pragma unroll 1
+        for (int r = 0; r < 16; ++r) {
+#pragma unroll
+            for (int i = 0; i < 64; ++i)
+                a[i] = a[i] * 0.999 + a[(i + 1) % 64] * 0.001;
+        }
+        double s = 0.0;
+#pragma unroll
+        for (int i = 0; i < 64; ++i)
+            s += a[i];
+        out[e] = s;
+    }
+}
+)op2"
+
+constexpr char unbounded[] = "extern \"C\" __global__" KERNEL_BODY;
+constexpr char bounded[] =
+    "extern \"C\" __global__ __launch_bounds__(op2_block_size_d)" KERNEL_BODY;
+
+double *out_d = nullptr;
+double *in_d = nullptr;
+
+int bind(op_arg *, unsigned&, std::span<void *> arguments) {
+    arguments[0] = &out_d;
+    arguments[1] = &in_d;
+    return 2;
+}
+
+// The block size a bounded kernel reads.
+const op::rt::abi::gpu::Param params[] = {
+    op::rt::abi::gpu::strategy_value("op2_block_size_d", "block_size")};
+
+// A loop of plain alone, its kernel built from source, its parts made from
+// the descriptor kept here.
+struct Described {
+    op::rt::abi::gpu::Family family;
+    op::rt::abi::gpu::Loop descriptor;
+    LoopParts<gpu::Executor> loop;
+
+    explicit Described(const char *source)
+        : family{{"plain", {}}, "thread_limit_kernel", nullptr, source},
+          descriptor{{.name = "thread_limit", .target = "cuda", .direct = true}, false, params,
+                     {&family, 1}, 2, &bind, &op::rt::kernel::gpu::calls,
+                     OP_KERNEL_JIT_HEADERS},
+          loop{descriptor, op::rt::context()} {}
+};
+
+std::vector<double> reference(const std::vector<double>& in) {
+    std::vector<double> out(elements);
+    for (int e = 0; e < elements; ++e) {
+        std::array<double, width> a;
+        for (int i = 0; i < width; ++i)
+            a[i] = in[e + i * elements];
+        for (int r = 0; r < 16; ++r)
+            for (int i = 0; i < width; ++i)
+                a[i] = a[i] * 0.999 + a[(i + 1) % width] * 0.001;
+        double s = 0.0;
+        for (int i = 0; i < width; ++i)
+            s += a[i];
+        out[e] = s;
+    }
+    return out;
+}
+
+// Whether every expectation so far held.
+bool passed = true;
+
+void expect(bool condition, const std::string& what) {
+    if (!condition)
+        std::fprintf(stderr, "jit thread limit: %s\n", what.c_str());
+    passed &= condition;
+}
+
+// Declare plain, and read the JIT variables.
+void declare() {
+    op::rt::init();
+    op::rt::init_gpu();
+    const loop::Family families[] = {{"plain", gpu::Simple::axes()}};
+    op::rt::context().families.declare(families);
+}
+
+} // namespace
+
+int main(int argc, char **argv) {
+    op_init(argc, argv, 2);
+    setenv("OP_BLOCK_SIZES", "1024", 1);
+
+    std::vector<double> in(static_cast<std::size_t>(width) * elements);
+    for (std::size_t i = 0; i < in.size(); ++i)
+        in[i] = 1.0 + static_cast<double>(i % 97) * 1e-3;
+    auto expected = reference(in);
+    GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&in_d), in.size() * sizeof(double)));
+    GPU_CHECK(gpuMalloc(reinterpret_cast<void **>(&out_d), elements * sizeof(double)));
+    GPU_CHECK(gpuMemcpy(in_d, in.data(), in.size() * sizeof(double), gpuMemcpyHostToDevice));
+
+    op_set_core set{};
+    set.size = elements;
+    set.core_size = elements;
+    set.name = "set";
+    std::array<op_arg, 1> args{};
+    args[0].opt = 0;
+    args[0].argtype = OP_ARG_GBL;
+    loop::Call call{&set, args, set.size, true};
+
+    // The loop's one candidate, as prepared: its specialised kernel, or the
+    // offline candidate kept to refuse a point with no kernel.
+    auto prepare = [&](LoopParts<gpu::Executor>& jit_loop) {
+        expect(jit_loop.ladder.size() == 1, "one candidate");
+        return jit_loop.ladder[0].prepare(call, loop::Urgency::wait);
+    };
+    // A call of the loop, compared with the host.
+    auto runs = [&](LoopParts<gpu::Executor>& jit_loop, const std::string& what) {
+        GPU_CHECK(gpuMemset(out_d, 0, elements * sizeof(double)));
+        jit_loop.run(call);
+        std::vector<double> out(elements);
+        GPU_CHECK(gpuMemcpy(out.data(), out_d, elements * sizeof(double),
+                            gpuMemcpyDeviceToHost));
+        double error = 0.0;
+        for (int e = 0; e < elements; ++e)
+            error = std::max(error, std::abs(out[e] - expected[e]));
+        auto prepared = prepare(jit_loop);
+        auto statistics = prepared.candidate->strategy->statistics(prepared);
+        std::printf("%s: %s, max error %g\n", what.c_str(), statistics.c_str(), error);
+        expect(error < 1e-9, what + " computes the result");
+        return statistics;
+    };
+    {
+        declare();
+        Described described{unbounded};
+        auto prepared = prepare(described.loop);
+        expect(prepared.status == loop::Status::unavailable &&
+                   prepared.reason == "thread_limit",
+               "without launch bounds: thread_limit, not " + std::string{prepared.reason});
+    }
+    {
+        declare();
+        Described described{bounded};
+        runs(described.loop, "launch bounds");
+    }
+
+    GPU_CHECK(gpuFree(in_d));
+    GPU_CHECK(gpuFree(out_d));
+    op_exit();
+    if (!passed)
+        return EXIT_FAILURE;
+    std::printf("JIT thread limit passed\n");
+    return EXIT_SUCCESS;
+}
