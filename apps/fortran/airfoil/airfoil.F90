@@ -263,7 +263,7 @@ contains
         allocate(adt(ncell))
 #endif
 
-#ifdef USE_ARG_PTRS
+#ifdef ARG_PTRS
         call op_memalloc(ptr_q, 4 * ncell * int(sizeof(q(1))))
         call op_memalloc(ptr_qold, 4 * ncell * int(sizeof(qold(1))))
         call op_memalloc(ptr_res, 4 * ncell * int(sizeof(res(1))))
@@ -297,7 +297,7 @@ contains
         deallocate(res)
 #endif
 
-#ifdef USE_ARG_PTRS
+#ifdef ARG_PTRS
         call free(ptr_edge)
         call free(ptr_ecell)
         call free(ptr_bedge)
