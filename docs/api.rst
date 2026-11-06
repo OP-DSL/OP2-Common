@@ -15,9 +15,10 @@ OP2 currently enables users to write a single program at a high-level API declar
 
 (1) Single-threaded on a CPU including code parallelized using SIMD
 (2) Multi-threaded using OpenMP for multicore CPU systems
-(3) Parallelized using CUDA for NVIDIA GPUs.
+(3) Parallelized using CUDA for NVIDIA GPUs
+(4) Parallelized using HIP for AMD GPUs
 
-Further to these there are also in-development versions that can emit SYCL and AMD HIP for parallelization on a wider range of GPUs. All of the above can be combined with distributed-memory MPI parallelization to run of clusters of CPU or GPU nodes. The user can either use OP2’s parallel file I/O capabilities for HDF5 files with a specified structure, or perform their own parallel file I/O using custom MPI code.
+All of the above can be combined with distributed-memory MPI parallelization to run of clusters of CPU or GPU nodes. The user can either use OP2’s parallel file I/O capabilities for HDF5 files with a specified structure, or perform their own parallel file I/O using custom MPI code.
 
 .. note::
    This page documents the C/C++ API. See :ref:`op2-fortran-api` for the equivalent Fortran API.
@@ -563,8 +564,8 @@ Initialisation and Shutdown
 - ``op_init_base`` takes ``diags_level`` as the first argument (same levels as :c:func:`op_init`). Under MPI builds it also calls ``MPI_Init``.
 - ``op_exit`` finalises OP2 and under MPI builds calls ``MPI_Finalize``.
 
-Index Types
-^^^^^^^^^^^
+Fortran Index Types
+^^^^^^^^^^^^^^^^^^^
 
 The Fortran equivalents of the C index types are:
 
@@ -607,8 +608,8 @@ HDF5 Variants
    call op_decl_map_hdf5(from_set, to_set, dim, map_handle, file_name, "name", stat)
    call op_decl_dat_hdf5(set, dim, dat_handle, "type", file_name, "name", stat)
 
-Parallel Loops
-^^^^^^^^^^^^^^
+Fortran Parallel Loops
+^^^^^^^^^^^^^^^^^^^^^^
 
 In the Fortran API the parallel loop call is named with the number of arguments:
 

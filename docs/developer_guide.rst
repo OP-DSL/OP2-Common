@@ -230,7 +230,7 @@ Several runtime behaviours are controlled by arguments passed to ``op_init`` (pa
    * - ``OP_PART_SIZE=<n>``
      - Partition size (mini-partition element count) override.
    * - ``OP_CACHE_LINE_SIZE=<n>``
-     - Cache line size assumption used in plan construction.
+     - Cache line size assumption used in ``op_plan`` construction.
    * - ``OP_NO_REALLOC``
      - Disables internal data copy on ``op_decl_dat``/``op_decl_map``; the user's pointer is used directly.
    * - ``OP_TEST_FREQ=<n>``

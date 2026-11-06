@@ -227,7 +227,9 @@ which produces:
 
    /opt/op2/
        bin/op2-translator          standalone translator wrapper
-       include/op2/                headers, with fortran/<variant>/ module files
+       include/op2/                headers, as op2/include holds them (the flat
+                                   ones and the op2/ tree), with
+                                   fortran/<variant>/ module files
        lib/                        libop2_*.a or .so
        lib/cmake/op2/              OP2Config.cmake and friends
        libexec/op2/translator/     translator payload and requirements.txt
