@@ -78,7 +78,7 @@ void op_arg_set(int n, op_arg arg, char **p_arg, int *idx, int halo){
     if (arg.map == NULL || arg.opt == 0)
       *idx = n + 1;
     else
-      *idx = arg.map->map[arg.idx + n * arg.map->dim] + OP_maps_base_index;
+      *idx = arg.map->map[arg.idx + n * arg.map->dim] + 1;
   } else if ( arg.argtype == OP_ARG_DAT ) {
     if (arg.map==NULL)         // identity mapping
       *p_arg += arg.size*n;
@@ -112,7 +112,7 @@ void op_args_check(op_set set, int nargs, op_arg *args,
   if (args[x - 1].idx < -1 && args[x - 1].opt != 0)                            \
     op_arg_copy_in(n, args[x - 1], (char **)p_a[x - 1]);                       \
   else {                                                                       \
-    op_arg_set(n, args[x - 1], &p_a[x - 1], &idxs[x], halo);                   \
+    op_arg_set(n, args[x - 1], &p_a[x - 1], &idxs[x - 1], halo);               \
   }
 
 #define PTR_LIST(N) COMMA_LIST(N,PTRL)
