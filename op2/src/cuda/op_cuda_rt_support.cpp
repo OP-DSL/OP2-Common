@@ -337,12 +337,12 @@ void cutilDeviceInit(int argc, char **argv) {
     OP_hybrid_gpu = 1;
   }
   if (OP_hybrid_gpu) {
-    gpuFree(test);
+    cutilSafeCall(gpuFree(test));
 
     cutilSafeCall(gpuDeviceSetCacheConfig(gpuFuncCachePreferL1));
 
     int deviceId = -1;
-    gpuGetDevice(&deviceId);
+    cutilSafeCall(gpuGetDevice(&deviceId));
     gpuDeviceProp_t deviceProp;
     cutilSafeCall(gpuGetDeviceProperties(&deviceProp, deviceId));
     printf("\n Using CUDA device: %d %s\n", deviceId, deviceProp.name);
