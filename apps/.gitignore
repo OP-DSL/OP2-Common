@@ -6,21 +6,18 @@ generated/
 seq/
 vec/
 openmp/
-openmp4/
 cuda/
 openacc/
 
 *_kernel.*
 *_seqkernel.*
 *_veckernel.*
-*_omp4kernel.*
 
 # Compiled apps
 *_seq
 *_genseq
 *_vec
 *_openmp
-*_openmp4
 *_cuda
 *_cuda_hyb
 *_mpi
