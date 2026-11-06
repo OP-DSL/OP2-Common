@@ -22,7 +22,14 @@
 #     [LINK_LIBRARIES <lib...>]    # linked to every executable created here,
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
+#     [STRATEGIES <s...>]          # also run each strategy-capable variant
+#                                  # (C++ openmp) once per strategy, forced,
+#                                  # as <target>_<strategy>, and once
+#                                  # exploring them all, as <target>_autotune
 # )
+#
+# Strategies run on the mpi family when there is one (the same kernels, with
+# halo sections) and on soa; the autotuner on the first of those.
 # ---------------------------------------------------------------------------
 set(_OP2_TEST_MPI_RANKS_LOWCOST 8)
 set(_OP2_TEST_MPI_RANKS_GPU 4)
@@ -42,7 +49,7 @@ function(op2_add_functional_tests)
     cmake_parse_arguments(_A
         ""
         "LANGUAGE;NAME"
-        "SOURCES;TRANSLATOR_ARGS;FAMILIES;EXCLUDE_VARIANTS;LINK_LIBRARIES"
+        "SOURCES;TRANSLATOR_ARGS;FAMILIES;EXCLUDE_VARIANTS;LINK_LIBRARIES;STRATEGIES"
         ${ARGN})
 
     if(NOT _A_FAMILIES)
@@ -53,25 +60,45 @@ function(op2_add_functional_tests)
             message(FATAL_ERROR "unknown test family '${_family}'")
         endif()
     endforeach()
+    foreach(_strategy IN LISTS _A_STRATEGIES)
+        if(NOT _strategy MATCHES "^(plain|atomics|colouring|chunk_atomics|chunk_colouring)$")
+            message(FATAL_ERROR "unknown execution strategy '${_strategy}'")
+        endif()
+    endforeach()
 
     get_filename_component(_category "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
     if(NOT _A_NAME)
         set(_A_NAME "${_category}")
     endif()
 
+    # The family the strategies run on besides soa, and the one the
+    # autotuner runs on.
+    if("mpi" IN_LIST _A_FAMILIES)
+        set(_strategy_family mpi)
+    else()
+        set(_strategy_family serial)
+    endif()
+    if(_strategy_family IN_LIST _A_FAMILIES)
+        set(_autotune_family ${_strategy_family})
+    else()
+        set(_autotune_family soa)
+    endif()
+
     set(_all_targets "")
     set(_all_variants "")
+    set(_all_families "")
 
     # op2_add_app_variants() reports exactly which targets it created, so take
     # its word rather than rebuilding <name>_<variant> from a variant list and
     # probing with if(TARGET). The family name is a known prefix, which is what
     # makes the variant recoverable - a target name alone is ambiguous, since
     # the base can contain underscores too (const_soa_par_mpi_seq).
-    macro(_op2_take_family _prefix)
+    macro(_op2_take_family _prefix _family)
         foreach(_t IN LISTS _fam_targets)
             list(APPEND _all_targets "${_t}")
             string(REGEX REPLACE "^${_prefix}_" "" _variant "${_t}")
             list(APPEND _all_variants "${_variant}")
+            list(APPEND _all_families "${_family}")
         endforeach()
     endmacro()
 
@@ -86,7 +113,7 @@ function(op2_add_functional_tests)
             TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
             SUMMARY_BUCKET TESTS
             TARGETS_VAR _fam_targets)
-        _op2_take_family("${_A_NAME}")
+        _op2_take_family("${_A_NAME}" serial)
     endif()
 
     if("mpi" IN_LIST _A_FAMILIES)
@@ -97,7 +124,7 @@ function(op2_add_functional_tests)
             TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS}
             SUMMARY_BUCKET TESTS
             TARGETS_VAR _fam_targets)
-        _op2_take_family("${_A_NAME}_par")
+        _op2_take_family("${_A_NAME}_par" mpi)
     endif()
 
     if("soa" IN_LIST _A_FAMILIES)
@@ -107,7 +134,7 @@ function(op2_add_functional_tests)
             TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} --force_soa
             SUMMARY_BUCKET TESTS
             TARGETS_VAR _fam_targets)
-        _op2_take_family("${_A_NAME}_soa")
+        _op2_take_family("${_A_NAME}_soa" soa)
     endif()
 
     if("soa_mpi" IN_LIST _A_FAMILIES)
@@ -118,7 +145,7 @@ function(op2_add_functional_tests)
             TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} --force_soa
             SUMMARY_BUCKET TESTS
             TARGETS_VAR _fam_targets)
-        _op2_take_family("${_A_NAME}_soa_par")
+        _op2_take_family("${_A_NAME}_soa_par" soa_mpi)
     endif()
 
     if(_A_LINK_LIBRARIES)
@@ -145,6 +172,7 @@ function(op2_add_functional_tests)
     foreach(_i RANGE ${_last_target})
         list(GET _all_targets ${_i} _tgt)
         list(GET _all_variants ${_i} _v)
+        list(GET _all_families ${_i} _family)
 
         # A real list via list(APPEND ...), not a pre-joined ";"-string:
         # MPIEXEC_PREFLAGS/POSTFLAGS are empty by default, and a string
@@ -174,9 +202,35 @@ function(op2_add_functional_tests)
         endif()
 
         set(_base_env "")
-        if(_v MATCHES "^(mpi_)?openmp$")
+        if(_v MATCHES "^(mpi_)?openmp(_legacy)?$")
             set(_base_env "OMP_NUM_THREADS=${_OP2_TEST_OMP_NUM_THREADS}")
         endif()
+        # The OpenMP variant on op::rt::cpu: C++'s openmp.
+        set(_cpu OFF)
+        if(_A_LANGUAGE STREQUAL "cpp" AND _v MATCHES "^(mpi_)?openmp$")
+            set(_cpu ON)
+        endif()
+
         _op2_variant_test(${_tgt} ${_base_env})
+
+        if(NOT _A_STRATEGIES OR NOT _cpu)
+            continue()
+        endif()
+
+        if(_family STREQUAL _strategy_family OR _family STREQUAL "soa")
+            foreach(_strategy IN LISTS _A_STRATEGIES)
+                _op2_variant_test(${_tgt}_${_strategy} OP_STRATEGY=${_strategy} ${_base_env})
+                # A loop that passes over its forced strategy has not
+                # tested it.
+                set_tests_properties(${_tgt}_${_strategy} PROPERTIES
+                    LABELS "${_labels};strategy"
+                    FAIL_REGULAR_EXPRESSION "passes over its forced strategy")
+            endforeach()
+        endif()
+
+        if(_family STREQUAL _autotune_family)
+            _op2_variant_test(${_tgt}_autotune OP_AUTOTUNE=report ${_base_env})
+            set_tests_properties(${_tgt}_autotune PROPERTIES LABELS "${_labels};strategy")
+        endif()
     endforeach()
 endfunction()
