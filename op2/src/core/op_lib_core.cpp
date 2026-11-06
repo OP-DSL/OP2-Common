@@ -37,6 +37,7 @@
 
 #include "op_lib_core.h"
 #include <op2/env.h>
+#include <op2/rt/lifecycle.h>
 #include <op_profile.h>
 #include <stdlib.h>
 #include <string.h>
@@ -390,6 +391,9 @@ void op_init_core(int argc, char **argv, int diags) {
 
   /*Initialize the double linked list to hold op_dats*/
   TAILQ_INIT(&OP_dat_list);
+
+  // The par_loop strategies' run-wide variables.
+  op::rt::init();
 }
 
 op_set op_decl_set_core(idx_l_t size, char const *name) {
