@@ -205,7 +205,7 @@ an ``op2_app_mesh_<file>`` test ahead of the tests that read it, into
 directory kept between builds.  ``-DOP2_TEST_MGCFD_DIR=<checkout>`` adds
 MG-CFD's C++ app, built from an `MG-CFD-app-OP2
 <https://github.com/warwick-hpsc/MG-CFD-app-OP2>`_ checkout and run on its
-M6 wing and Rotor37 1M meshes:
+M6 wing and Rotor37 1M meshes, where HDF5 is found:
 
 .. code-block:: shell
 

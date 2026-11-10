@@ -127,8 +127,8 @@ if(CMAKE_Fortran_COMPILER)
 endif()
 
 # MG-CFD's C++ app, built from the checkout as its own CMake build would, run
-# on two meshes it reads from their directories.
-if(OP2_TEST_MGCFD_DIR)
+# on two meshes it reads from their directories.  It reads them through HDF5.
+if(OP2_TEST_MGCFD_DIR AND HDF5_FOUND)
     op2_add_app_variants(
         NAME     euler3d
         LANGUAGE cpp
