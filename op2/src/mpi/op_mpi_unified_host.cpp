@@ -1,7 +1,6 @@
 #include <op2/mpi/exchange_backend.h>
 #include <op2/mpi/halo.h>
 
-#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -70,35 +69,42 @@ ExchangeBuffers HostBackend::alloc_buffers(size_t gather_size, size_t scatter_si
     return {gather_buf, scatter_buf, gather_buf, scatter_buf};
 }
 
-// The host copy is always AoS, so an element is one contiguous row of dim
-// components and a spec is a loop of row copies. The element width is chosen once
-// per spec, not per element as copy_element does for the device kernel, and the
-// spec's fields are read into locals first: a store through T * may alias them,
-// which would otherwise force them to be reloaded for every element.
-template<typename Spec, typename Copy>
-static void by_width(const Spec &spec, Copy copy) {
-    switch (spec.dat.elem_size) {
-        case 1:  copy(std::uint8_t{});  break;
-        case 2:  copy(std::uint16_t{}); break;
-        case 4:  copy(std::uint32_t{}); break;
-        case 8:  copy(std::uint64_t{}); break;
-        default: unsupported_elem_size(spec.dat.elem_size); break;
+// The host copy is always AoS, so an element is one contiguous row and the copy needs
+// to know nothing of its components: row list[i] of the dat is row i of the buffer.
+// Always inlined, so that `row` is a constant where the caller passes one and each
+// memcpy is then a move or two.
+template<bool to_dat>
+[[gnu::always_inline]] static inline void copy_rows(std::size_t row, char *dat, char *buf,
+                                                    const int *list, int n) {
+    for (int i = 0; i < n; ++i) {
+        char *in_dat = dat + list[i] * row, *in_buf = buf + i * row;
+        if (to_dat)
+            std::memcpy(in_dat, in_buf, row);
+        else
+            std::memcpy(in_buf, in_dat, row);
     }
 }
 
-static void gather(const GatherSpec &g) {
-    by_width(g, [&](auto width) {
-        using T = decltype(width);
-        const T *data = static_cast<const T *>(g.dat.data);
-        T *target = static_cast<T *>(g.target);
-        const int *list = g.list;
-        const int size = g.size;
-        const std::size_t dim = g.dat.dim;
-        for (int i = 0; i < size; ++i)
-            for (std::size_t c = 0; c < dim; ++c)
-                target[i * dim + c] = data[list[i] * dim + c];
-    });
+// Most dats' rows are one of these lengths. The rest pay a memcpy call per row, which
+// costs more than copying a short row does.
+template<bool to_dat>
+static void copy_rows(const DatAccessor &accessor, void *buffer, const int *list, int n) {
+    const std::size_t row = (std::size_t) accessor.dim * accessor.elem_size;
+    char *dat = static_cast<char *>(accessor.data), *buf = static_cast<char *>(buffer);
+    switch (row) {
+        case 4:  copy_rows<to_dat>(4, dat, buf, list, n); break;
+        case 8:  copy_rows<to_dat>(8, dat, buf, list, n); break;
+        case 12: copy_rows<to_dat>(12, dat, buf, list, n); break;
+        case 16: copy_rows<to_dat>(16, dat, buf, list, n); break;
+        case 24: copy_rows<to_dat>(24, dat, buf, list, n); break;
+        case 32: copy_rows<to_dat>(32, dat, buf, list, n); break;
+        case 40: copy_rows<to_dat>(40, dat, buf, list, n); break;
+        case 48: copy_rows<to_dat>(48, dat, buf, list, n); break;
+        default: copy_rows<to_dat>(row, dat, buf, list, n); break;
+    }
 }
+
+static void gather(const GatherSpec &g) { copy_rows<false>(g.dat, g.target, g.list, g.size); }
 
 static void scatter(const ScatterSpec &s) {
     if (!s.is_indirect()) {
@@ -107,17 +113,7 @@ static void scatter(const ScatterSpec &s) {
         std::memcpy((char *) s.dat.data + s.offset * row, s.source, s.size * row);
         return;
     }
-    by_width(s, [&](auto width) {
-        using T = decltype(width);
-        T *data = static_cast<T *>(s.dat.data);
-        const T *source = static_cast<const T *>(s.source);
-        const int *list = s.list;
-        const int size = s.size;
-        const std::size_t dim = s.dat.dim;
-        for (int i = 0; i < size; ++i)
-            for (std::size_t c = 0; c < dim; ++c)
-                data[list[i] * dim + c] = source[i * dim + c];
-    });
+    copy_rows<true>(s.dat, s.source, s.list, s.size);
 }
 
 void HostBackend::initiate_gathers(const SpecsByNeighbour<GatherSpec> &gathers_for_neighbour) {

@@ -4,16 +4,10 @@
 #include <op_lib_c.h>
 #include <op_lib_mpi.h>
 
-#include <cstdio>
-#include <cstdint>
+#include <cstddef>
 
-// Declares the device printf used below under offline HIP.
-#if defined(__HIPCC__) && !defined(__HIPCC_RTC__)
-#include <hip/hip_runtime.h>
-#endif
-
-// The element copies below run in the gather/scatter kernels on a GPU backend
-// and in a plain loop on a CPU one, so they are compiled for both.
+// The element copy below runs in a GPU backend's gather and scatter kernels; the
+// host backend copies whole rows instead.
 #if defined(__CUDACC__) || defined(__HIPCC__)
 #define OP2_UNIFIED_HD __host__ __device__
 #else
@@ -37,15 +31,6 @@ struct DatAccessor {
     // strided is the backend's business, so each one fills this in itself.
     DatAccessor(void *data, int dim, int stride, int elem_size, bool soa)
         : data{data}, dim{dim}, stride{stride}, elem_size{elem_size}, soa{soa} {}
-
-    template<typename T>
-    constexpr T& get(std::size_t i, std::size_t j) const {
-        if (soa) {
-            return ((T *) data)[i + j * stride];
-        } else {
-            return ((T *) data)[i * dim + j];
-        }
-    }
 };
 
 struct GatherSpec {
@@ -87,55 +72,53 @@ struct ScatterSpec {
     }
 };
 
-OP2_UNIFIED_HD inline void unsupported_elem_size(int elem_size) {
-    printf("op_mpi_unified_exchanges: unsupported element size %d\n", elem_size);
-#if defined(__CUDA_ARCH__)
-    __trap();
-#else
-    __builtin_trap();
-#endif
+// The element of its dat that element `index` of a spec is.
+OP2_UNIFIED_HD inline std::size_t set_element(const GatherSpec &g, std::size_t index) {
+    return g.list[index];
 }
 
-template<typename T>
-OP2_UNIFIED_HD inline void gather_components(const GatherSpec &g, std::size_t index,
-                                             std::size_t set_elem) {
-    for (int i = 0; i < g.dat.dim; ++i) {
-        ((T *) g.target)[index * g.dat.dim + i] = g.dat.template get<T>(set_elem, i);
-    }
+OP2_UNIFIED_HD inline std::size_t set_element(const ScatterSpec &s, std::size_t index) {
+    return s.is_indirect() ? s.list[index] : s.offset + index;
 }
 
-template<typename T>
-OP2_UNIFIED_HD inline void scatter_components(const ScatterSpec &s, std::size_t index,
-                                              std::size_t set_elem) {
-    for (int i = 0; i < s.dat.dim; ++i) {
-        s.dat.template get<T>(set_elem, i) = ((const T *) s.source)[index * s.dat.dim + i];
-    }
+// W bytes between two addresses aligned to W, as every component of a dat and of an
+// exchange buffer is. A memcpy copies a dat of any type. The builtins, because nvcc
+// moves single bytes without the promise and does not take it from
+// std::assume_aligned, and HIP declares no device memcpy here.
+template<int W>
+OP2_UNIFIED_HD inline void copy_component(void *to, const void *from) {
+    __builtin_memcpy(__builtin_assume_aligned(to, W), __builtin_assume_aligned(from, W), W);
 }
 
-// Copy one halo element. index is the element's position within the spec. The
-// two are overloads of one name so the device kernel and the host loop can be
-// written once against a spec type.
-OP2_UNIFIED_HD inline void copy_element(const GatherSpec &g, std::size_t index) {
-    std::size_t set_elem = g.list[index];
-
-    switch (g.dat.elem_size) {
-        case 1:  gather_components<std::uint8_t> (g, index, set_elem); break;
-        case 2:  gather_components<std::uint16_t>(g, index, set_elem); break;
-        case 4:  gather_components<std::uint32_t>(g, index, set_elem); break;
-        case 8:  gather_components<std::uint64_t>(g, index, set_elem); break;
-        default: unsupported_elem_size(g.dat.elem_size); break;
-    }
+template<int W>
+OP2_UNIFIED_HD inline void copy_components(const GatherSpec &g, std::size_t index) {
+    const DatAccessor &dat = g.dat;
+    const std::size_t elem = set_element(g, index);
+    const std::size_t first = dat.soa ? elem : elem * dat.dim, step = dat.soa ? dat.stride : 1;
+    for (int c = 0; c < dat.dim; ++c)
+        copy_component<W>((char *) g.target + (index * dat.dim + c) * W,
+                          (const char *) dat.data + (first + c * step) * W);
 }
 
-OP2_UNIFIED_HD inline void copy_element(const ScatterSpec &s, std::size_t index) {
-    std::size_t set_elem = s.is_indirect() ? s.list[index] : s.offset + index;
+template<int W>
+OP2_UNIFIED_HD inline void copy_components(const ScatterSpec &s, std::size_t index) {
+    const DatAccessor &dat = s.dat;
+    const std::size_t elem = set_element(s, index);
+    const std::size_t first = dat.soa ? elem : elem * dat.dim, step = dat.soa ? dat.stride : 1;
+    for (int c = 0; c < dat.dim; ++c)
+        copy_component<W>((char *) dat.data + (first + c * step) * W,
+                          (const char *) s.source + (index * dat.dim + c) * W);
+}
 
-    switch (s.dat.elem_size) {
-        case 1:  scatter_components<std::uint8_t> (s, index, set_elem); break;
-        case 2:  scatter_components<std::uint16_t>(s, index, set_elem); break;
-        case 4:  scatter_components<std::uint32_t>(s, index, set_elem); break;
-        case 8:  scatter_components<std::uint64_t>(s, index, set_elem); break;
-        default: unsupported_elem_size(s.dat.elem_size); break;
+// Copy one halo element. index is the element's position within the spec.
+template<typename Spec>
+OP2_UNIFIED_HD inline void copy_element(const Spec &spec, std::size_t index) {
+    switch (spec.dat.elem_size) {
+        case 1:  copy_components<1>(spec, index); break;
+        case 2:  copy_components<2>(spec, index); break;
+        case 4:  copy_components<4>(spec, index); break;
+        case 8:  copy_components<8>(spec, index); break;
+        default: break;  // the exchange takes no other width
     }
 }
 
