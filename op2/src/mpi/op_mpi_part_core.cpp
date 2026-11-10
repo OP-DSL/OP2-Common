@@ -538,9 +538,10 @@ static void renumber_maps(int my_rank, int comm_size) {
     };
 
     // Register every element held here, with its current index.
-    std::vector<Renumbered> mine(held.size());
+    std::vector<Renumbered> mine;
+    mine.reserve(held.size());
     for (std::size_t i = 0; i < held.size(); i++)
-      mine[i] = {held[i], first + static_cast<idx_g_t>(i)};
+      mine.push_back({held[i], first + static_cast<idx_g_t>(i)});
     auto registered = op::mpi::sparse::exchange_by(OP_PART_WORLD, mine,
                                                    [&](const Renumbered &e) { return dir.rank_of(e.original); });
     std::vector<idx_g_t> table(dir.begin(my_rank + 1) - block, -1);
