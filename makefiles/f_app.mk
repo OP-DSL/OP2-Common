@@ -50,6 +50,10 @@ VARIANT_FILTER_OUT ?=
 BUILDABLE_VARIANTS := $(filter-out $(VARIANT_FILTER_OUT),\
                       $(filter $(VARIANT_FILTER),$(BUILDABLE_VARIANTS)))
 
+# The translator targets of the app's variants: a target the app filters out may reject it.
+APP_TARGETS := $(filter-out $(VARIANT_FILTER_OUT),$(filter $(VARIANT_FILTER),$(ALL_VARIANTS)))
+APP_TARGETS := $(sort $(patsubst genseq,seq,$(filter-out seq,$(APP_TARGETS:mpi_%=%))))
+
 ifeq ($(OP2_LIBS_WITH_HDF5),true)
   ifneq ($(HAVE_HDF5_SEQ),true)
     BUILDABLE_VARIANTS := $(filter mpi_%,$(BUILDABLE_VARIANTS))
@@ -86,7 +90,7 @@ endif
 define GENERATED_template =
 generated/$(APP_NAME): $(APP_SRC)
 	@mkdir -p $$@
-	$(TRANSLATOR) $(APP_EXTRA_FLAGS) $(APP_EXTRA_TRANSLATOR_FLAGS) $$^ -o $$@ \
+	$(TRANSLATOR) $(APP_TARGETS:%=-t %) $(APP_EXTRA_FLAGS) $(APP_EXTRA_TRANSLATOR_FLAGS) $$^ -o $$@ \
 	  || { rm -rf $$@; exit 1; }
 
 generate: generated/$(APP_NAME)

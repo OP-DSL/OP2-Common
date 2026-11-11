@@ -218,6 +218,8 @@ When using the OP2 Makefiles (``makefiles/c_app.mk`` / ``makefiles/f_app.mk``), 
    * - ``VARIANT_FILTER_OUT``
      - A Make pattern used to *exclude* matching build variants from the set of targets printed and built. For example, ``VARIANT_FILTER_OUT := %hip%`` suppresses all HIP variants.
 
+The translator generates code only for the targets of the variants that remain, so an application can filter out a variant whose target rejects it.
+
 Example — restrict an application to CUDA variants only and pass an extra define:
 
 .. code-block:: make
