@@ -1029,8 +1029,8 @@ def translateIntrinsicFunctionReference(intrinsic_function_reference: f2003.Intr
     func_name = translateName(items[0], ctx)
 
     # REAL and INT convert to their default kind, or to the one their second
-    # argument names.
-    if func_name in ["real", "int"]:
+    # argument names; FLOAT is REAL to the default kind.
+    if func_name in ["real", "int", "float"]:
         args = items[1].items if isinstance(items[1], f2003.Actual_Arg_Spec_List) else (items[1],)
         kind = None
         if len(args) > 1:

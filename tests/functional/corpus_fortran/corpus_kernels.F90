@@ -69,8 +69,8 @@ contains
     f = real(X(2), 4)
     m = int(X(3) * 10.0_8)
     big = int(K, 8) * 3000000000_8
-    y(1) = d + e
-    y(2) = dble(f) + real(m, 8)
+    y(1) = d + e + float(K)
+    y(2) = dble(f) + real(m, kind=8)
     y(3) = real(mod(big, 7_8), 8)
   end subroutine kinds
 
