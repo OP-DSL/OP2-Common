@@ -45,8 +45,8 @@ extern op_plan * OP_plans;
 extern "C" {
 
 void op_partition_wrapper (const char* lib_name, const char* lib_routine,
-  op_set prime_set, op_map prime_map, op_dat coords) {
-  op_partition (lib_name, lib_routine, prime_set, prime_map, coords);
+  op_set prime_set, op_map prime_map, op_dat data) {
+  op_partition (lib_name, lib_routine, prime_set, prime_map, data);
 }
 
 void FortranToCMapping (op_arg * arg) {
@@ -146,13 +146,4 @@ op_plan * FortranPlanCaller (char name[], op_set set,
 
   return generatedPlan;
 }
-void op_trigger_halo_exchanges_c(int device, char *name, op_set set, int nargs, op_arg *args) {
-  op_mpi_halo_exchanges_grouped(set, nargs, args, device);
-  op_mpi_wait_all_grouped(nargs, args, device);
-  if (device == 1)
-    op_mpi_set_dirtybit(nargs, args);
-  else
-    op_mpi_set_dirtybit_cuda(nargs, args);
-}
-
 }

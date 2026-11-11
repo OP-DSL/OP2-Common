@@ -149,6 +149,8 @@ OP2_MPI := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_rt_support.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
+	mpi/op_mpi_unified_exchanges.o \
+	mpi/op_mpi_unified_host.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o \
 	externlib/op_profile+mpi.o)
@@ -163,9 +165,11 @@ OP2_MPI_CUDA := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_part_core.o \
 	mpi/op_mpi_cuda_decl+cuda.o \
 	mpi/op_mpi_cuda_rt_support+cuda.o \
-	mpi/op_mpi_cuda_kernels+cuda.o \
+	mpi/op_mpi_cuda_unified_kernels+cuda.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
+	mpi/op_mpi_unified_exchanges.o \
+	mpi/op_mpi_unified_host.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o \
 	externlib/op_profile+mpi.o)
@@ -177,9 +181,11 @@ OP2_MPI_HIP := $(OP2_BASE) $(addprefix $(OBJ)/,\
 	mpi/op_mpi_part_core.o \
 	mpi/op_mpi_cuda_decl+hip.o \
 	mpi/op_mpi_cuda_rt_support+hip.o \
-	mpi/op_mpi_cuda_kernels+hip.o \
+	mpi/op_mpi_cuda_unified_kernels+hip.o \
 	mpi/op_mpi_hdf5.o \
 	mpi/op_mpi_util.o \
+	mpi/op_mpi_unified_exchanges.o \
+	mpi/op_mpi_unified_host.o \
 	externlib/op_util.o \
 	externlib/op_renumber.o \
 	externlib/op_profile+mpi.o)

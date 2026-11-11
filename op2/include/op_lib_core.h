@@ -142,11 +142,16 @@ typedef struct {
                        executed */
 
   int stride;       /* device SoA stride */
+
+  /* geometry, from op_set_coords{,_derived}: coords on this set, or coords
+     averaged over coords_map; NULL if none was registered */
+  struct op_dat_core *coords;
+  struct op_map_core *coords_map;
 } op_set_core;
 
 typedef op_set_core *op_set;
 
-typedef struct {
+typedef struct op_map_core {
   int index;        /* index */
   op_set from,      /* set pointed from */
       to;           /* set pointed to */
@@ -161,7 +166,7 @@ typedef struct {
 
 typedef op_map_core *op_map;
 
-typedef struct {
+typedef struct op_dat_core {
   int index;        /* index */
   op_set set;       /* set on which data is defined */
   int dim,          /* dimension of data */
@@ -170,13 +175,10 @@ typedef struct {
       *data_d;      /* data on device (GPU) */
   char const *type, /* datatype */
       *name;        /* name of dataset */
-  char *buffer_d;   /* buffer for MPI halo sends on the devidce */
-  char *buffer_d_r; /* buffer for MPI halo receives on the devidce */
   int dirtybit;     /* flag to indicate MPI halo exchange is needed*/
   int dirty_hd;     /* flag to indicate dirty status on host and device */
   int user_managed; /* indicates whether the user is managing memory */
-  void *mpi_buffer; /* ponter to hold the mpi buffer struct for the op_dat*/
-} op_dat_core;
+} op_dat_core;      /* mirrored by op_dat_core in op2_for_declarations.F90: keep the two in step */
 
 typedef op_dat_core *op_dat;
 
@@ -193,8 +195,7 @@ typedef struct {
   char const *type; /* datatype */
   op_access acc;
   op_arg_type argtype;
-  int sent; /* flag to indicate if this argument has
-               data in flight under non-blocking MPI comms*/
+  int sent; /* unused, always 0; kept so the layout matches the Fortran op_arg */
   int opt;  /* flag to indicate if this argument is in use */
 } op_arg;
 
@@ -337,6 +338,7 @@ void check_map(char const *name, op_set from, op_set to, int dim, int *map);
 void op_register_map_ptr(int *map_ptr, op_map map);
 
 op_map op_search_map_ptr(int *map_ptr);
+op_dat op_search_dat_ptr(const void *data); /* the op_dat declared from data, or NULL */
 
 void op_disable_device_execution(bool disable);
 
@@ -354,22 +356,22 @@ void op_download_dat(op_dat dat);
 * Core MPI lib function prototypes
 *******************************************************************************/
 
-int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args);
-
-int op_mpi_halo_exchanges_cuda(op_set set, int nargs, op_arg *args);
+/* The halo exchange around a loop over set. Every exchange must be followed by
+   exactly one op_mpi_wait_all before the next. device is 1 when the loop runs on
+   the host and 2 on a device: it says where each dat's current copy has to be.
+   Returns how many elements of set the loop executes - set->size, plus the exec
+   halo when an indirect arg is written. op_mpi_test_all progresses an exchange
+   that is still outstanding, without waiting for it. */
+int op_mpi_halo_exchanges(op_set set, int nargs, op_arg *args, int device);
+void op_mpi_wait_all(int nargs, op_arg *args);
+void op_mpi_test_all(int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit(int nargs, op_arg *args);
 
 void op_mpi_set_dirtybit_cuda(int nargs, op_arg *args);
 
-void op_mpi_wait_all(int nargs, op_arg *args);
-void op_mpi_test_all(int nargs, op_arg *args);
 
-void op_mpi_wait_all_cuda(int nargs, op_arg *args);
 
-void op_mpi_reset_halos(int nargs, op_arg *args);
-
-void op_mpi_reduce_combined(op_arg *args, int nargs);
 
 void op_mpi_reduce_float(op_arg *args, float *data);
 
@@ -381,19 +383,17 @@ void op_mpi_reduce_bool(op_arg *args, bool *data);
 
 void op_mpi_barrier();
 
-void op_realloc_comm_buffer(char **send_buffer_host, char **recv_buffer_host, 
-      char **send_buffer_device, char **recv_buffer_device, int device, 
-      size_t size_send, size_t size_recv);
-int op_mpi_halo_exchanges_grouped(op_set set, int nargs, op_arg *args, int device);
-void op_mpi_test_all_grouped(int nargs, op_arg *args);
-void op_mpi_wait_all_grouped(int nargs, op_arg *args, int device);
+/* Exchange the halos of args and wait for them, outside of an op_par_loop.
+   device is 1 for host, 2 for device, and says where the data is wanted. */
+void op_trigger_halo_exchanges(int device, const char *name, op_set set, int nargs,
+                               op_arg *args);
 
 
 /*******************************************************************************
 * Toplevel partitioning selection function - also triggers halo creation
 *******************************************************************************/
 void op_partition(const char *lib_name, const char *lib_routine,
-                  op_set prime_set, op_map prime_map, op_dat coords);
+                  op_set prime_set, op_map prime_map, op_dat data);
 
 /*******************************************************************************
 * Other partitioning related routine prototypes
@@ -402,11 +402,23 @@ void op_partition(const char *lib_name, const char *lib_routine,
 void op_partition_destroy();
 
 void *op_mpi_perf_time(const char *name, double time);
-#ifdef COMM_PERF
-void op_mpi_perf_comms(void *k_i, int nargs, op_arg *args);
-#endif
+
+/* Register a set's geometry, for geometric partitioning and for renumbering:
+   coords (2D or 3D doubles) on the set itself, or, for a set with none of its
+   own such as the cells of a cell-centred mesh, coords on to_coords->to averaged
+   over to_coords, a map from the set. */
+void op_set_coords(op_set set, op_dat coords);
+void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords);
+/* The same, with the map and the coordinates named by the arrays they were
+   declared from, for the pointer API. */
+void op_set_coords_ptr(op_set set, double *coords);
+void op_set_coords_derived_ptr(op_set set, int *to_coords, double *coords);
 
 void op_renumber(op_map base);
+
+/* Read OP_REORDER and OP_REORDER_PROPAGATE; the MPI libraries' op_init calls
+   it. */
+void op_renumber_init();
 
 /*******************************************************************************
 * Utility function to compare two op_sets and return 1 if they are identical

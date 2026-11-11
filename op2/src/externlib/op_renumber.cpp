@@ -30,48 +30,217 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <op_lib_core.h>
-#include <op_lib_cpp.h>
-#include <op_util.h>
-#include <vector>
-#include <algorithm>
-#include <iterator>
-#include <op_lib_mpi.h>
+/*
+ * op_renumber.cpp
+ *
+ * op_renumber(base) reorders each rank's core elements of base->to, the primary
+ * set, with the ordering the OP_REORDER environment variable names (the
+ * single-node libraries have a stub that warns and reorders nothing):
+ *
+ *     OP_REORDER=none      - no reordering
+ *     OP_REORDER=random    - random permutation (benchmark baseline)
+ *     OP_REORDER=rcm       - Reverse Cuthill-McKee (default without geometry)
+ *     OP_REORDER=sloan     - Sloan profile-minimising ordering
+ *     OP_REORDER=hilbert   - Hilbert space-filling curve, on the primary set's
+ *                            geometry (op_set_coords{,_derived}; default with it)
+ *
+ * Once the primary set's permutation is computed, OP_REORDER_PROPAGATE
+ * controls how that permutation is extended to other sets reachable via
+ * maps (e.g., reordering edges after nodes have been reordered):
+ *
+ *     OP_REORDER_PROPAGATE=lex       - multi-key lex sort over all map
+ *                                      dimensions (default without
+ *                                      geometry)
+ *     OP_REORDER_PROPAGATE=centroid  - Hilbert SFC of stencil centroid;
+ *                                      centroids are averaged from the
+ *                                      already-ordered parent set, so
+ *                                      this needs the primary set's
+ *                                      geometry (default with it)
+ *
+ * The ordering algorithms themselves live in header-only modules:
+ *
+ *     op2/renumber/rcm.h          - RCM + shared graph utilities
+ *     op2/renumber/sloan.h        - Sloan (depends on op2/renumber/rcm.h)
+ *     op2/renumber/hilbert_sfc.h  - Hilbert SFC (standalone, geometric)
+ */
+
+#include <op2/env.h>
+#include <op2/mpi/halo.h>
+#include <op2/renumber/hilbert_sfc.h>
+#include <op2/renumber/rcm.h>
+#include <op2/renumber/sloan.h>
+#include <op_lib_c.h>
 #include <op_mpi_core.h>
 
-#ifdef HAVE_PTSCOTCH
-#include <scotch.h>
-#endif
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <numeric>
+#include <optional>
+#include <random>
+#include <utility>
+#include <vector>
 
-#ifdef PARMETIS_VER_4
-#include <metis.h>
-typedef idx_t idxtype;
-#endif
-extern part *OP_part_list;
-
-typedef struct {
-  int a;
-  int b;
-} map2;
-
-int compare(const void *a, const void *b) {
-  return ((*(map2 *)a).a - (*(map2 *)b).a);
+/* Stops the job unless perm is a permutation of 0..perm.size()-1: every ordering
+   is built as one, so anything else is a bug that would scramble the set. */
+static void check_permutation(const std::vector<int> &perm, op_set set) {
+  std::vector<char> seen(perm.size(), 0);
+  for (int p : perm) {
+    if (p < 0 || p >= (int)perm.size() || seen[p])
+      op::mpi::fail("op_renumber: the new order of set %s is not a permutation\n", set->name);
+    seen[p] = 1;
+  }
 }
 
-void check_permutation(int *perm, int size) {
-  std::vector<int> flags(size,0);
-  for (int i = 0; i < size; i++)
-    flags[perm[i]] = 1;
-  int acc = 0;
-  for (int i = 0; i < size; i++)
-    acc += flags[i];
-  if (acc != size) printf("Permutation map error\n");
+//-----------------------------------------------------------------------------
+// Propagating the primary set's order to the sets the maps reach
+//-----------------------------------------------------------------------------
+
+// Propagation strategy for non-primary sets reached via a map from a set
+// that has already been reordered. Selectable via OP_REORDER_PROPAGATE.
+//
+//  Lex      - sort `to`-set elements lexicographically by all map endpoint
+//             new-indices. Within each first-endpoint bucket the second
+//             endpoint is sorted, the third within that, etc. Improves
+//             cache reuse and GPU coalescing on the second+ endpoint of
+//             every dim>1 map. The default without geometry.
+//  Centroid - compute a geometric centroid for each `to`-set element by
+//             averaging the parent set's centroids (or coords, for the
+//             primary set), then reorder via Hilbert SFC on those
+//             centroids. Symmetric across all map dimensions; needs the
+//             primary set's geometry, and is the default with it.
+enum class PropagateMethod {
+  Lex,
+  Centroid,
+};
+
+/* How many of a set's core elements a Hilbert curve ordered, at how many
+   distinct positions, and with how many distinct keys: elements that share a key
+   keep their previous relative order, so positions merged into one key mean the
+   curve resolves the mesh too coarsely. */
+struct HilbertKeys {
+  int elements = 0, points = 0, keys = 0;
+};
+
+// Per-call state carried through propagate_reordering recursion.
+struct PropagationContext {
+  PropagateMethod method;
+  int coord_dim;  // the primary set's geometry's dimension, 2 or 3 in centroid mode
+  // set_centroids[s] is a flat AoS array of length size * coord_dim for
+  // set s (every owned element, so that a core element's parents are all
+  // there), in original (pre-permutation) element order. Empty for
+  // sets that have no centroid available (either coord_dim is 0, or the
+  // set was reordered through a path that didn't propagate centroids).
+  std::vector<std::vector<double> > set_centroids;
+  std::vector<HilbertKeys> keys; // by set, for every set a Hilbert curve ordered
+};
+
+// Lex multi-key order: returns indices [0, n) sorted such that for k < k',
+// the tuple (perm[map[order[k]*dim+0]], ..., perm[map[order[k]*dim+dim-1]])
+// is lexicographically less than the corresponding tuple for order[k'].
+// Ties are broken by original index for reproducibility.
+static std::vector<int> compute_lex_order(op_map map,
+                                          const std::vector<int> &fperm,
+                                          int n_elems) {
+  std::vector<int> order(n_elems);
+  for (int i = 0; i < n_elems; i++) order[i] = i;
+
+  const int dim = map->dim;
+  const int *mp = map->map;
+  std::sort(order.begin(), order.end(),
+            [dim, &fperm, mp](int x, int y) {
+              for (int d = 0; d < dim; d++) {
+                int kx = fperm[mp[dim * x + d]];
+                int ky = fperm[mp[dim * y + d]];
+                if (kx != ky) return kx < ky;
+              }
+              return x < y;
+            });
+  return order;
 }
 
-// propage renumbering based on a map that points to an already reordered set
-void propagate_reordering(op_set from, op_set to,
-                          std::vector<std::vector<int> > &set_permutations,
-                          std::vector<std::vector<int> > &set_ipermutations) {
+// Compute centroids for the from-set of `map` by averaging the to-set's
+// centroids over the map dimensions. Used by case 1 of propagate_reordering,
+// where the to-set ('parent') is already ordered and has centroids.
+//
+// Returns true on success, false if parent centroids aren't available.
+// Halo entries in the map (parent index >= parent size) are skipped: only
+// owned elements that are not core can reach them, and they average over
+// fewer parents. Core elements reach owned parents only.
+static bool compute_centroids_to_from(op_map map, PropagationContext &pctx) {
+  op_set child = map->from;
+  op_set parent = map->to;
+  const std::vector<double> &pc = pctx.set_centroids[parent->index];
+  if (pc.empty()) return false;
+
+  const int cd = pctx.coord_dim;
+  const int n = child->size;
+  const int parent_n = (int)(pc.size() / cd);
+
+  std::vector<double> &out = pctx.set_centroids[child->index];
+  out.assign((size_t)n * cd, 0.0);
+
+  for (int i = 0; i < n; i++) {
+    int valid = 0;
+    for (int d = 0; d < map->dim; d++) {
+      int p = map->map[i * map->dim + d];
+      if (p >= 0 && p < parent_n) {
+        for (int c = 0; c < cd; c++)
+          out[(size_t)i * cd + c] += pc[(size_t)p * cd + c];
+        valid++;
+      }
+    }
+    if (valid > 0) {
+      for (int c = 0; c < cd; c++)
+        out[(size_t)i * cd + c] /= (double)valid;
+    }
+  }
+  return true;
+}
+
+// Compute centroids for the to-set of `map` by accumulating from-centroids
+// from every from-element that references each to-element. Used by case 2
+// of propagate_reordering. The to-set's actual ordering comes from the
+// existing first-touch counter logic; centroids are computed alongside
+// purely so that descendants of this to-set can use centroid mode.
+static bool compute_centroids_from_to(op_map map, PropagationContext &pctx) {
+  op_set parent = map->from;
+  op_set child = map->to;
+  const std::vector<double> &pc = pctx.set_centroids[parent->index];
+  if (pc.empty()) return false;
+
+  const int cd = pctx.coord_dim;
+  const int n = child->size;
+  const int parent_n = (int)(pc.size() / cd);
+
+  std::vector<double> &out = pctx.set_centroids[child->index];
+  out.assign((size_t)n * cd, 0.0);
+  std::vector<int> touch(n, 0);
+
+  for (int i = 0; i < parent_n; i++) {
+    for (int d = 0; d < map->dim; d++) {
+      int t = map->map[i * map->dim + d];
+      if (t >= 0 && t < n) {
+        for (int c = 0; c < cd; c++)
+          out[(size_t)t * cd + c] += pc[(size_t)i * cd + c];
+        touch[t]++;
+      }
+    }
+  }
+  for (int i = 0; i < n; i++) {
+    if (touch[i] > 0) {
+      for (int c = 0; c < cd; c++)
+        out[(size_t)i * cd + c] /= (double)touch[i];
+    }
+  }
+  return true;
+}
+
+// Propagate renumbering based on a map that points to an already reordered set.
+static void propagate_reordering(op_set from, op_set to,
+                                 PropagationContext &pctx,
+                                 std::vector<std::vector<int> > &set_permutations,
+                                 std::vector<std::vector<int> > &set_ipermutations) {
 
   if (to->size == 0)
     return;
@@ -81,18 +250,33 @@ void propagate_reordering(op_set from, op_set to,
     for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
       op_map map = OP_map_list[mapidx];
       if (map->to == from && map->from == to) {
-        std::vector<map2> renum(to->core_size);
-        for (int i = 0; i < to->core_size; i++) {
-          renum[i].a = set_permutations[from->index][map->map[map->dim * i]];
-          renum[i].b = i;
+        const int n = to->core_size;
+        const int total = to->size + to->exec_size + to->nonexec_size;
+        set_permutations[to->index].resize(total);
+
+        // Centroids, unless the parent has none (it has no owned elements);
+        // then lex.
+        bool ordered_via_centroid = false;
+        if (pctx.method == PropagateMethod::Centroid && compute_centroids_to_from(map, pctx)) {
+          std::vector<int> perm;
+          op::renumber::hilbert_sfc_stats stats{};
+          op::renumber::hilbert_sfc_order(
+              pctx.set_centroids[to->index].data(), n, pctx.coord_dim, perm, &stats);
+          pctx.keys[to->index] = {stats.num_verts, stats.distinct_points, stats.distinct_indices};
+          for (int i = 0; i < n; i++)
+            set_permutations[to->index][i] = perm[i];
+          ordered_via_centroid = true;
         }
-        qsort(&renum[0], renum.size(), sizeof(map2), compare);
-        set_permutations[to->index].resize(to->size+to->exec_size+to->nonexec_size);
-        for (int i = 0; i < to->core_size; i++)
-          set_permutations[to->index][renum[i].b] = i;
-        for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
+
+        if (!ordered_via_centroid) { // lex, also when the parent has no centroids
+          std::vector<int> order = compute_lex_order(map, set_permutations[from->index], n);
+          for (int i = 0; i < n; i++)
+            set_permutations[to->index][order[i]] = i;
+        }
+
+        for (int i = n; i < total; i++)
           set_permutations[to->index][i] = i;
-        check_permutation(&set_permutations[to->index][0],to->size + to->exec_size + to->nonexec_size);
+        check_permutation(set_permutations[to->index], to);
         break;
       }
     }
@@ -103,23 +287,31 @@ void propagate_reordering(op_set from, op_set to,
       op_map map = OP_map_list[mapidx];
       if (map->to == to && map->from == from) {
         int counter = 0;
-        set_permutations[to->index].resize(to->size+to->exec_size+to->nonexec_size,-1);
+        set_permutations[to->index].resize(to->size + to->exec_size + to->nonexec_size, -1);
         for (int i = 0; i < from->size; i++) {
           for (int d = 0; d < map->dim; d++) {
-            int idx = map->map[set_ipermutations[from->index][i]*map->dim + d];
-            if (idx < to->core_size && set_permutations[to->index][idx]==-1)
-              set_permutations[to->index][idx]=counter++;
+            int idx = map->map[set_ipermutations[from->index][i] * map->dim + d];
+            if (idx < to->core_size && set_permutations[to->index][idx] == -1)
+              set_permutations[to->index][idx] = counter++;
           }
         }
         int onto = 1;
-        for (int i = 0; i < to->core_size; i++) if (set_permutations[to->index][i]==-1) {onto = 0; break;}
+        for (int i = 0; i < to->core_size; i++)
+          if (set_permutations[to->index][i] == -1) { onto = 0; break; }
         if (!onto) {
           set_permutations[to->index].resize(0);
           continue;
         }
         for (int i = to->core_size; i < to->size + to->exec_size + to->nonexec_size; i++)
           set_permutations[to->index][i] = i;
-        check_permutation(&set_permutations[to->index][0],to->size + to->exec_size + to->nonexec_size);
+        check_permutation(set_permutations[to->index], to);
+
+        // Centroids alongside the first-touch order, so the sets reached
+        // from this one can be ordered by them. The order itself is the
+        // first touch in either mode: walking the already reordered `from`
+        // set gives it that set's locality.
+        if (pctx.method == PropagateMethod::Centroid)
+          compute_centroids_from_to(map, pctx);
         break;
       }
     }
@@ -128,8 +320,8 @@ void propagate_reordering(op_set from, op_set to,
     return;
   }
   else {
-    set_ipermutations[to->index].resize(to->size+to->exec_size+to->nonexec_size);
-    for (int i = 0; i < to->size+to->exec_size+to->nonexec_size; i++) {
+    set_ipermutations[to->index].resize(to->size + to->exec_size + to->nonexec_size);
+    for (int i = 0; i < to->size + to->exec_size + to->nonexec_size; i++) {
       set_ipermutations[to->index][set_permutations[to->index][i]] = i;
     }
   }
@@ -138,379 +330,397 @@ void propagate_reordering(op_set from, op_set to,
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->to == to && set_permutations[map->from->index].size() == 0) {
-      propagate_reordering(to, map->from, set_permutations, set_ipermutations);
+      propagate_reordering(to, map->from, pctx, set_permutations, set_ipermutations);
     }
   }
   // find any maps that is to->(*), propagate reordering
   for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
     op_map map = OP_map_list[mapidx];
     if (map->from == to && set_permutations[map->to->index].size() == 0) {
-      propagate_reordering(to, map->to, set_permutations, set_ipermutations);
+      propagate_reordering(to, map->to, pctx, set_permutations, set_ipermutations);
     }
   }
 }
 
-void reorder_set(op_set set, std::vector<std::vector<int> > &set_permutations,
-                 std::vector<std::vector<int> > &set_ipermutations) {
+//-----------------------------------------------------------------------------
+// OP_REORDER and OP_REORDER_PROPAGATE
+//-----------------------------------------------------------------------------
 
-  (void)set_ipermutations;
-  if (set_permutations[set->index].size() == 0 && set->core_size > 0) {
-    printf("No reordering for set %s, skipping...\n", set->name);
-    return;
-  }
+enum class ReorderMethod {
+  None,
+  Random,
+  RCM,
+  Sloan,
+  Hilbert
+};
 
-  if (set->size == 0)
-    return;
+/* A method, the value of its environment variable that chooses it, and the name
+   op_renumber reports it by. */
+template <class Method> struct Named {
+  const char *value, *name;
+  Method method;
+};
 
-  //Reorder maps
-  for (int mapidx = 0; mapidx < OP_map_index; mapidx++) {
-    op_map map = OP_map_list[mapidx];
-    if (map->from == set) {
-      int *tempmap = (int *)malloc((set->size+set->exec_size) * sizeof(int) * map->dim);
+constexpr Named<ReorderMethod> reorder_methods[] = {
+    {"none", "none", ReorderMethod::None},   {"random", "random", ReorderMethod::Random},
+    {"rcm", "RCM", ReorderMethod::RCM},      {"sloan", "Sloan", ReorderMethod::Sloan},
+    {"hilbert", "Hilbert SFC", ReorderMethod::Hilbert},
+};
+constexpr Named<PropagateMethod> propagate_methods[] = {
+    {"lex", "lex", PropagateMethod::Lex},
+    {"centroid", "centroid", PropagateMethod::Centroid},
+};
 
-      for (int i = 0; i < set->size+set->exec_size; i++)
-        std::copy(map->map + map->dim * i, map->map + map->dim * (i + 1),
-                  tempmap + map->dim * set_permutations[set->index][i]);
-      free(map->map);
-      map->map = tempmap;
-
-    } else if (map->to == set) {
-      for (int i = 0; i < (map->from->size+map->from->exec_size) * map->dim; i++)
-        map->map[i] = set_permutations[set->index][map->map[i]];
-    }
-  }
-
-  //Reorder datasets
-  op_dat_entry *item;
-  TAILQ_FOREACH(item, &OP_dat_list, entries) {
-    op_dat dat = item->dat;
-    if (dat->set == set && dat->data != NULL) {
-      char *tempdata = (char *)malloc((size_t)(set->size+set->exec_size+set->nonexec_size) * (size_t)dat->size);
-      for (unsigned long int i = 0; i < (unsigned long int)(set->size+set->exec_size+set->nonexec_size); i++)
-        std::copy(dat->data + (unsigned long int)dat->size * i,
-                  dat->data + (unsigned long int)dat->size * (i + 1),
-                  tempdata +
-                      (unsigned long int)dat->size *
-                          (unsigned long int)set_permutations[set->index][i]);
-      free(dat->data);
-      dat->data = tempdata;
-    }
-  }
-
-  //Renumber halos
-  halo_list exp_exec_list = OP_export_exec_list[set->index];
-  halo_list exp_nonexec_list = OP_export_nonexec_list[set->index];
-  if (exp_exec_list->ranks_size > 0) {
-    int halolen = exp_exec_list->disps[exp_exec_list->ranks_size-1] + exp_exec_list->sizes[exp_exec_list->ranks_size-1];
-    for (int i = 0; i < halolen; i++) {
-      exp_exec_list->list[i] = set_permutations[set->index][exp_exec_list->list[i]];
-    }
-  }
-  if (exp_nonexec_list->ranks_size > 0) {
-    int halolen = exp_nonexec_list->disps[exp_nonexec_list->ranks_size-1] + exp_nonexec_list->sizes[exp_nonexec_list->ranks_size-1];
-    for (int i = 0; i < halolen; i++) {
-      exp_nonexec_list->list[i] = set_permutations[set->index][exp_nonexec_list->list[i]];
-    }
-  }
-
-  //Reorder mapping back to original (unpartitioned indexing)
-  idx_g_t *new_g_index = (idx_g_t*)malloc(set->size*sizeof(idx_g_t));
-  for (int i = 0; i < set->size; i++)
-    new_g_index[set_permutations[set->index][i]] = OP_part_list[set->index]->g_index[i];
-  free(OP_part_list[set->index]->g_index);
-  OP_part_list[set->index]->g_index = new_g_index; 
+template <class Method, std::size_t N> static const char *name_of(const Named<Method> (&methods)[N], Method m) {
+  for (const Named<Method> &named : methods)
+    if (named.method == m)
+      return named.name;
+  return "unknown";
 }
 
-void op_renumber(op_map base) {
-#ifndef HAVE_PTSCOTCH
-  op_printf("OP2 was not compiled with Scotch, no reordering.\n");
-#else
-  op_printf("Renumbering using base map %s\n", base->name);
-/*
-  int generated_partvec = 0;
-  if (FILE *file = fopen("partvec0001_0001", "r")) {
-    fclose(file);
-    int possible[] = {1,  2,  4,   6,   8,   12,  16,   22,   24,
-                      32, 64, 128, 192, 256, 512, 1024, 2048, 4096};
-    for (int i = 0; i < 18; i++) {
-      char buffer[64];
-      sprintf(buffer, "partvec0001_%04d", possible[i]);
-      if (!(file = fopen(buffer, "r")))
+/* The method the environment variable var chooses, ignoring case; none when it
+   is unset or, with a warning, set to something else. */
+template <class Method, std::size_t N>
+static std::optional<Method> requested(const char *var, const Named<Method> (&methods)[N]) {
+  op::env::Choice choices[N];
+  for (std::size_t i = 0; i < N; ++i)
+    choices[i] = {methods[i].value, static_cast<int>(methods[i].method)};
+  int value = -1;
+  if (!op::env::parse_choice(var, choices, value))
+    return std::nullopt;
+  return static_cast<Method>(value);
+}
+
+/* OP_REORDER and OP_REORDER_PROPAGATE, as op_init read them. */
+static std::optional<ReorderMethod> reorder_requested;
+static std::optional<PropagateMethod> propagate_requested;
+
+void op_renumber_init() {
+  reorder_requested = requested("OP_REORDER", reorder_methods);
+  propagate_requested = requested("OP_REORDER_PROPAGATE", propagate_methods);
+}
+
+/* OP_REORDER; unset, a Hilbert curve if the primary set has geometry, else RCM.
+   A Hilbert curve asked for without geometry is RCM, with a warning. Geometry is
+   registered on every rank alike, so every rank chooses the same. */
+static ReorderMethod get_reorder_method(op_set set) {
+  const bool geometry = set->coords != NULL;
+  ReorderMethod m = reorder_requested.value_or(geometry ? ReorderMethod::Hilbert : ReorderMethod::RCM);
+  if (m == ReorderMethod::Hilbert && !geometry) {
+    op_printf("Warning: OP_REORDER=hilbert needs the geometry of set %s, registered with op_set_coords or "
+              "op_set_coords_derived; using RCM\n", set->name);
+    m = ReorderMethod::RCM;
+  }
+  return m;
+}
+
+/* OP_REORDER_PROPAGATE; unset, centroids if the primary set has geometry, else lex.
+   Centroids asked for without geometry are lex, with a warning. */
+static PropagateMethod get_propagate_method(op_set set) {
+  const bool geometry = set->coords != NULL;
+  PropagateMethod m =
+      propagate_requested.value_or(geometry ? PropagateMethod::Centroid : PropagateMethod::Lex);
+  if (m == PropagateMethod::Centroid && !geometry) {
+    op_printf("Warning: OP_REORDER_PROPAGATE=centroid needs the geometry of set %s, registered with op_set_coords "
+              "or op_set_coords_derived; using lex\n", set->name);
+    m = PropagateMethod::Lex;
+  }
+  return m;
+}
+
+// A random permutation, as a baseline. The seed is fixed, so a run can be
+// repeated (with the same standard library).
+static void random_order(int num_verts, std::vector<int> &permutation) {
+  permutation.resize(num_verts);
+  std::iota(permutation.begin(), permutation.end(), 0);
+  std::shuffle(permutation.begin(), permutation.end(), std::mt19937(42u));
+}
+
+/* The geometry of a set's owned elements, size * dim doubles in local order (the
+   core elements first), from op_set_coords{,_derived}; empty if none was
+   registered. Derived geometry averages over the elements the map reaches that
+   this rank owns: halo creation has run, but nothing has exchanged the
+   coordinates' halo yet. */
+static std::vector<double> owned_coords(op_set set, int *dim) {
+  const op_dat coords = set->coords;
+  if (coords == NULL)
+    return {};
+  const int d = coords->dim, n = set->size;
+  const double *xyz = reinterpret_cast<const double *>(coords->data);
+  *dim = d;
+  const op_map map = set->coords_map;
+  if (map == NULL)
+    return std::vector<double>(xyz, xyz + (size_t)n * d);
+
+  std::vector<double> out((size_t)n * d, 0.0);
+  int starved = 0;
+  for (int e = 0; e < n; e++) {
+    int owned = 0;
+    for (int j = 0; j < map->dim; j++) {
+      const int p = map->map[(size_t)e * map->dim + j];
+      if (p >= coords->set->size)
         continue;
-      printf("Processing partitioning for %d partitions\n", possible[i]);
-      int *partvec = (int *)malloc(base->to->size * sizeof(int));
-      int *order = (int *)malloc(base->to->size * sizeof(int));
-      int total_ctr = 0;
-      for (int f = 0; f < possible[i]; f++) {
-        if (f > 0) {
-          fclose(file);
-          sprintf(buffer, "partvec%04d_%04d", f + 1, possible[i]);
-          file = fopen(buffer, "r");
-        }
-        int counter = 0;
-        int id, part;
-        while (fscanf(file, "%d %d", &id, &part) != EOF) {
-          partvec[id] = part - 1;
-          order[id] = counter;
-          counter++;
-          total_ctr++;
-        }
-      }
-      fclose(file);
-      sprintf(buffer, "partvec%04d", possible[i]);
-      op_decl_dat(base->to, 1, "int", partvec, buffer);
-      sprintf(buffer, "ordering%04d", possible[i]);
-      op_decl_dat(base->to, 1, "int", order, buffer);
-      if (total_ctr != base->to->size)
-        printf("Size mismatch %d %d\n", total_ctr, base->to->size);
-      generated_partvec = 1;
+      for (int c = 0; c < d; c++)
+        out[(size_t)e * d + c] += xyz[(size_t)p * d + c];
+      owned++;
     }
+    starved += owned == 0;
+    for (int c = 0; c < d && owned > 0; c++)
+      out[(size_t)e * d + c] /= owned;
   }
-*/
-  //-----------------------------------------------------------------------------------------
-  // Build adjacency list
-  //-----------------------------------------------------------------------------------------
-  //base->to->size does not include exec halo
-  std::vector<SCOTCH_Num> row_offsets(base->to->core_size + 1);
-  std::vector<SCOTCH_Num> col_indices;
-  if (base->to == base->from) {
-    col_indices.resize(base->dim * base->from->size);
-    // if map is self-referencing, mapping is the same, except we have to remove references 
-    // the halo
-    row_offsets[0] = 0;
-    for (int i = 0; i < base->from->size; i++) {
-      int rowlen = 0;
-      for (int j = 0; j < base->dim; j++)
-        if (base->map[i*base->dim+j] < base->to->core_size)
-          col_indices[row_offsets[i]+rowlen++] = base->map[i*base->dim+j];
-      row_offsets[i+1] = row_offsets[i] + rowlen;
-    }
-    //reduce size to actual size
-    col_indices.resize(row_offsets[base->to->core_size]);
-  } else {
-    // otherwise, construct self-referencing map
-    col_indices.resize(base->from->size * (base->dim - 1) *
-                       (base->dim)); // Worst case memory requirement
+  if (starved > 0)
+    op_printf("WARNING in op_renumber: %d of %d owned elements of set %s reach no owned element of %s through %s, "
+              "so they sit at the origin\n", starved, n, set->name, coords->set->name, map->name);
+  return out;
+}
 
-    // construct map pointing back, dropping indices referring to the halo
-    std::vector<map2> loopback(base->from->size * base->dim);
-    int sizectr = 0;
-    for (int i = 0; i < base->from->size ; i++) {
-      for (int j = 0; j < base->dim; j++) {
-        if (base->map[i*base->dim+j] < base->to->core_size) {
-          loopback[sizectr].a = base->map[i*base->dim+j];
-          loopback[sizectr].b = i;
-          sizectr++;
-        }
-      }
-    }
-
-    loopback.resize(sizectr);
-    qsort(&loopback[0], loopback.size(), sizeof(map2), compare);
-    
-    row_offsets[0] = 0;
-    row_offsets[1] = 0;
-    row_offsets[base->to->core_size] = 0;
-    for (int i = 0; i < base->dim; i++) {
-      //Drop self-references
-      if (base->map[base->dim * loopback[0].b + i] != 0 &&
-          base->map[base->dim * loopback[0].b + i] < base->to->core_size)
-        col_indices[row_offsets[1]++] =
-            base->map[base->dim * loopback[0].b + i];
-    }
-    int nodectr = 0;
-    for (size_t i = 1; i < loopback.size(); i++) {
-      if (loopback[i].a != loopback[i - 1].a) {
-        nodectr++;
-        row_offsets[nodectr + 1] = row_offsets[nodectr];
-      }
-
-      for (int d1 = 0; d1 < base->dim; d1++) {
-        int id = base->map[base->dim * loopback[i].b + d1];
-        int add = (id != nodectr && id < base->to->core_size);
-        for (int d2 = row_offsets[nodectr];
-             (d2 < row_offsets[nodectr + 1]) && add; d2++) {
-          if (col_indices[d2] == id)
-            add = 0;
-        }
-        if (add)
-          col_indices[row_offsets[nodectr + 1]++] = id;
-      }
-    }
-    if (row_offsets[base->to->core_size] == 0) {
-      printf(
-          "Map %s is not an onto map from %s to %s, or bad partitioning, aborting renumbering...\n",
-          base->name, base->from->name, base->to->name);
-      return;
-    }
-    col_indices.resize(row_offsets[base->to->core_size]);
-    if (OP_diags>2) op_printf("Loopback map %s->%s constructed: %d, from set %s (%d)\n",
-           base->to->name, base->to->name, (int)col_indices.size(),
-           base->from->name, base->from->size);
-  }
-  //sanity check
-  for (idx_l_t row = 0; row < (idx_l_t)row_offsets.size()-1; row++) {
-    if (row_offsets[row] == row_offsets[row+1]) printf("Zero length row\n");
-    for (int col = row_offsets[row]; col < row_offsets[row+1]; col++) {
-      if (col_indices[col]<0 || col_indices[col]>=(idx_l_t)row_offsets.size()-1)
-        printf("Error col idx %d, but num rows is %lu\n", col_indices[col],
-               row_offsets.size() - 1);
-      else {
-        //Symmetry
-        int found = 0;
-        for (int c2 = row_offsets[col_indices[col]]; c2 < row_offsets[col_indices[col]+1]; c2++) {
-          if (col_indices[c2] == row) found = 1;
-        }
-        if (!found) printf("Error, symmetry broken at row %d col %d\n",row,col_indices[col]);
-      }
-    }
-  }
-  //Statistics
-  int max_dist = 0;
-  long avg_dist = 0;
+//-----------------------------------------------------------------------------
+// Per-edge bandwidth / locality statistic: the maximum pairwise distance
+// between endpoint indices of each edge, averaged and maxed over edges.
+//-----------------------------------------------------------------------------
+static void compute_edge_stats(op_map base, int &max_dist, long &avg_dist) {
+  max_dist = 0;
+  avg_dist = 0;
+  if (base->from->size == 0) return;
   for (int i = 0; i < base->from->size; i++) {
     int dist = 0;
     for (int d1 = 0; d1 < base->dim; d1++)
       for (int d2 = 0; d2 < base->dim; d2++)
-        dist = std::max(dist,std::abs(base->map[i*base->dim+d1]-base->map[i*base->dim+d2]));
-    max_dist = std::max(max_dist,dist);
+        dist = std::max(dist, std::abs(base->map[i * base->dim + d1] -
+                                       base->map[i * base->dim + d2]));
+    max_dist = std::max(max_dist, dist);
     avg_dist += dist;
   }
   avg_dist /= base->from->size;
-/*
-  if (generated_partvec == 0) {
-#ifdef PARMETIS_VER_4
-    int possible[] = {2,  4,   6,   8,   12,  16,   22,   24,  32,
-                      64, 128, 192, 256, 512, 1024, 2048, 4096};
-    for (int i = 0; i < 17; i++) {
-      int *partvec = (int *)malloc(base->to->size * sizeof(int));
-      idxtype nconstr = 1;
-      idxtype edgecut;
-      idxtype nparts = possible[i];
-      idxtype options[METIS_NOPTIONS];
-      METIS_SetDefaultOptions(options);
-      options[METIS_OPTION_OBJTYPE] = METIS_OBJTYPE_VOL;
-      options[METIS_OPTION_NCUTS] = 3;
-      options[METIS_OPTION_NSEPS] = 3;
-      options[METIS_OPTION_NUMBERING] = 0;
-      options[METIS_OPTION_MINCONN] = 1;
+}
 
-      METIS_PartGraphKway((idxtype *)&base->to->size, &nconstr,
-                          (idxtype *)&row_offsets[0],
-                          (idxtype *)&col_indices[0], NULL, NULL, NULL, &nparts,
-                          NULL, NULL, options, &edgecut, (idxtype *)partvec);
-      printf("Metis partitioning precomputed for %d partitions. Edgecut: %d\n",
-             nparts, edgecut);
-      char buffer[50];
-      sprintf(buffer, "partvec%04d", possible[i]);
-      op_decl_dat(base->to, 1, "int", partvec, buffer);
+/* The graph RCM and Sloan order: the core elements of base->to, two of them
+   adjacent when one element of base->from maps to both - or, for a map from a
+   set to itself, when one maps to the other. Symmetric, with no self-loops or
+   repeats; entries outside the core (halo elements, or negative) are left out.
+   The neighbours of u are col_indices[row_offsets[u]] up to row_offsets[u + 1]. */
+static void build_core_adjacency(op_map base, std::vector<int> &row_offsets, std::vector<int> &col_indices) {
+  const int n = base->to->core_size, dim = base->dim;
+  const bool self = base->from == base->to;
+  auto in_core = [n](int v) { return v >= 0 && v < n; };
+  // calls f(u, v) for every edge, once each way round
+  auto each_edge = [&](auto &&f) {
+    for (int e = 0; e < (self ? n : base->from->size); e++) {
+      const int *row = base->map + (size_t)e * dim;
+      for (int a = 0; a < dim; a++) {
+        if (!in_core(row[a]))
+          continue;
+        if (self) {
+          if (row[a] != e) {
+            f(e, row[a]);
+            f(row[a], e);
+          }
+        } else {
+          for (int b = 0; b < dim; b++)
+            if (b != a && in_core(row[b]) && row[b] != row[a])
+              f(row[a], row[b]);
+        }
+      }
     }
-#endif
+  };
+
+  row_offsets.assign(n + 1, 0);
+  each_edge([&](int u, int) { row_offsets[u + 1]++; });
+  for (int u = 0; u < n; u++)
+    row_offsets[u + 1] += row_offsets[u];
+  col_indices.resize(row_offsets[n]);
+  std::vector<int> next(row_offsets.begin(), row_offsets.end() - 1);
+  each_edge([&](int u, int v) { col_indices[next[u]++] = v; });
+
+  // sort each row and drop its repeats, compacting in place
+  int out = 0;
+  for (int u = 0; u < n; u++) {
+    const int begin = row_offsets[u], end = row_offsets[u + 1], start = out;
+    std::sort(col_indices.begin() + begin, col_indices.begin() + end);
+    for (int k = begin; k < end; k++)
+      if (out == start || col_indices[out - 1] != col_indices[k])
+        col_indices[out++] = col_indices[k];
+    row_offsets[u] = start;
   }
-*/
-  //
-  // Using SCOTCH for reordering
-  //
-  SCOTCH_Num baseval = 0; // start numbering from 0
-  SCOTCH_Num vertnbr =
-      base->to->core_size; // number of vertices in graph = number of cells in mesh
-  SCOTCH_Num edgenbr = row_offsets[base->to->core_size];
+  row_offsets[n] = out;
+  col_indices.resize(out);
+}
 
-  SCOTCH_Graph *graphptr = SCOTCH_graphAlloc();
-  SCOTCH_graphInit(graphptr);
+//-----------------------------------------------------------------------------
+// Public entry point
+//-----------------------------------------------------------------------------
 
-  SCOTCH_Num *verttab = &row_offsets[0];
-
-  SCOTCH_Num *vendtab = &verttab[1]; // = NULL; // Used to calculate vertex
-                                     // degree = verttab[i+1] - verttab[i]
-  SCOTCH_Num *velotab = NULL;        // Vertex load = vertex weight
-  SCOTCH_Num *vlbltab = NULL;
-  SCOTCH_Num *edgetab = &col_indices[0];
-
-  SCOTCH_Num *edlotab = NULL; // Edge load = edge weight
-  SCOTCH_Num *permutation =
-      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
-  SCOTCH_Num *ipermutation =
-      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
-  SCOTCH_Num *cblkptr =
-      (SCOTCH_Num *)malloc(base->to->core_size * sizeof(SCOTCH_Num));
-  SCOTCH_Num *rangtab =
-      NULL; //(SCOTCH_Num*) malloc(1 + ncell*sizeof(SCOTCH_Num));
-  SCOTCH_Num *treetab = NULL; //(SCOTCH_Num*) malloc(ncell*sizeof(SCOTCH_Num));
-
-  int mesg = 0;
-  mesg = SCOTCH_graphBuild(graphptr, baseval, vertnbr, verttab, vendtab,
-                           velotab, vlbltab, edgenbr, edgetab, edlotab);
-  if (mesg != 0) {
-    op_printf("Error during SCOTCH_graphBuild() \n");
-    exit(-1);
-  }
-
-  SCOTCH_Strat *straptr = SCOTCH_stratAlloc();
-  SCOTCH_stratInit(straptr);
-
-  const char *strategyString = "g";
-  //    char * strategyString = "(g{pass=100})";
-  mesg = SCOTCH_stratGraphOrder(straptr, strategyString);
-  if (mesg != 0) {
-    op_printf("Error during setting strategy string. \n");
-    exit(-1);
+/* Reorder this rank's core elements of base's target set, and of every set the
+   ordering propagates to; returns, by set, what the Hilbert curves among them
+   made of their keys. It can give up on one rank alone (a core with no edges of
+   its own), so nothing collective may happen in here. */
+static std::vector<HilbertKeys> renumber_owned(op_map base, ReorderMethod method, PropagateMethod propagate) {
+  std::vector<HilbertKeys> keys(OP_set_index);
+  int num_verts = base->to->core_size;
+  if (num_verts == 0) {
+    if (OP_diags > 2)
+      printf("op_renumber: core_size is zero on set %s, nothing to do\n", base->to->name);
+    return keys;
   }
 
-  mesg = SCOTCH_graphOrder(graphptr, straptr, permutation, ipermutation,
-                           cblkptr, rangtab, treetab);
-  if (mesg != 0) {
-    op_printf("Error during SCOTCH_graphOrder() \n");
-    exit(-1);
-  }
-  SCOTCH_graphExit(graphptr);
-  SCOTCH_stratExit(straptr);
+  // The primary set's geometry: Hilbert orders by it, and centroid propagation
+  // starts from it. op_renumber chose neither without it.
+  int coord_dim = 0;
+  const bool need_coords = method == ReorderMethod::Hilbert || propagate == PropagateMethod::Centroid;
+  const std::vector<double> coords = need_coords ? owned_coords(base->to, &coord_dim) : std::vector<double>();
 
+  //---------------------------------------------------------------------------
+  // Compute the core-size permutation via the selected algorithm.
+  //---------------------------------------------------------------------------
+  std::vector<int> permutation;
+
+  if (method == ReorderMethod::Random) {
+    random_order(num_verts, permutation);
+
+  } else if (method == ReorderMethod::Hilbert) {
+    op::renumber::hilbert_sfc_stats hstats{};
+    op::renumber::hilbert_sfc_order(coords.data(), num_verts, coord_dim, permutation, &hstats);
+    keys[base->to->index] = {hstats.num_verts, hstats.distinct_points, hstats.distinct_indices};
+
+    // On rank 0; report_hilbert_keys warns about merged keys on any rank.
+    if (OP_diags > 2)
+      op_printf("op_renumber: Hilbert SFC on set %s at %d bits/axis: %d elements, %d positions, %d keys; "
+                "axis ranges %.3g %.3g %.3g, effective bits %.2f %.2f %.2f\n",
+                base->to->name, hstats.nominal_bits, hstats.num_verts, hstats.distinct_points, hstats.distinct_indices,
+                hstats.axis_range[0], hstats.axis_range[1], hstats.axis_range[2], hstats.effective_bits[0],
+                hstats.effective_bits[1], hstats.effective_bits[2]);
+
+  } else {
+    // RCM and Sloan both need the CSR adjacency.
+    std::vector<int> row_offsets, col_indices;
+    build_core_adjacency(base, row_offsets, col_indices);
+    if (col_indices.empty()) {
+      if (OP_diags > 2)
+        printf("op_renumber: no two core elements of set %s share an element of %s, nothing to order\n",
+               base->to->name, base->from->name);
+      return keys;
+    }
+
+    if (method == ReorderMethod::RCM) {
+      op::renumber::rcm_order(row_offsets, col_indices, num_verts, permutation);
+    } else { // Sloan
+      op::renumber::sloan_order(row_offsets, col_indices, num_verts, permutation);
+    }
+  }
+
+  //---------------------------------------------------------------------------
+  // Pre-reordering statistics (computed on the original map so the "before"
+  // numbers correspond to the ordering coming in from the partitioner).
+  //---------------------------------------------------------------------------
+  int max_dist_before = 0;
+  long avg_dist_before = 0;
+  if (OP_diags > 2)
+    compute_edge_stats(base, max_dist_before, avg_dist_before);
+
+  //---------------------------------------------------------------------------
+  // Assemble the full per-set permutation with identity on the halo range.
+  //---------------------------------------------------------------------------
   std::vector<std::vector<int> > set_permutations(OP_set_index);
   std::vector<std::vector<int> > set_ipermutations(OP_set_index);
-  set_permutations[base->to->index].resize(base->to->size + base->to->exec_size + base->to->nonexec_size);
-  std::copy(permutation, permutation + base->to->size,
-            set_permutations[base->to->index].begin());
-  for (int i = base->to->core_size; i < base->to->size + base->to->exec_size + base->to->nonexec_size; i++)
+
+  int to_total = base->to->size + base->to->exec_size + base->to->nonexec_size;
+  set_permutations[base->to->index].resize(to_total);
+  for (int i = 0; i < num_verts; i++)
+    set_permutations[base->to->index][i] = permutation[i];
+  for (int i = num_verts; i < to_total; i++)
     set_permutations[base->to->index][i] = i;
-  check_permutation(&set_permutations[base->to->index][0],base->to->size + base->to->exec_size + base->to->nonexec_size);
-  set_ipermutations[base->to->index].resize(base->to->size + base->to->exec_size + base->to->nonexec_size);
-  std::copy(ipermutation, ipermutation + base->to->size,
-            set_ipermutations[base->to->index].begin());
-  for (int i = base->to->core_size; i < base->to->size + base->to->exec_size + base->to->nonexec_size; i++)
-    set_permutations[base->to->index][i] = i;
-  propagate_reordering(base->to, base->to, set_permutations, set_ipermutations);
-  for (int i = 0; i < OP_set_index; i++) {
-    reorder_set(OP_set_list[i], set_permutations, set_ipermutations);
+  check_permutation(set_permutations[base->to->index], base->to);
+
+  set_ipermutations[base->to->index].resize(to_total);
+  for (int i = 0; i < to_total; i++) {
+    set_ipermutations[base->to->index][set_permutations[base->to->index][i]] = i;
   }
+
+  //---------------------------------------------------------------------------
+  // Set up the propagation context. In centroid mode, seed the primary set's
+  // centroids from its geometry (in original/pre-permutation order - the
+  // helpers in propagate_reordering index map entries against this layout).
+  //---------------------------------------------------------------------------
+  PropagationContext pctx;
+  pctx.method = propagate;
+  pctx.coord_dim = coord_dim;
+  pctx.set_centroids.resize(OP_set_index);
+  pctx.keys = std::move(keys);
+  if (propagate == PropagateMethod::Centroid)
+    pctx.set_centroids[base->to->index] = coords;
+
+  //---------------------------------------------------------------------------
+  // Propagate to connected sets and apply physically.
+  //---------------------------------------------------------------------------
+  propagate_reordering(base->to, base->to, pctx, set_permutations, set_ipermutations);
+  // a set the propagation did not reach keeps its order
+  for (int s = 0; s < OP_set_index; s++)
+    if (!set_permutations[s].empty())
+      op::mpi::move_owned(OP_set_list[s], {set_permutations[s].data(), (std::size_t)OP_set_list[s]->size});
 
   op_move_to_device();
 
-  op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
-  //Statistics
-  max_dist = 0;
-  avg_dist = 0;
-  for (int i = 0; i < base->from->size; i++) {
-    int dist = 0;
-    for (int d1 = 0; d1 < base->dim; d1++)
-      for (int d2 = 0; d2 < base->dim; d2++)
-        dist = std::max(dist,std::abs(base->map[i*base->dim+d1]-base->map[i*base->dim+d2]));
-    max_dist = std::max(max_dist,dist);
-    avg_dist += dist;
+  //---------------------------------------------------------------------------
+  // Post-reordering statistics.
+  //---------------------------------------------------------------------------
+  if (OP_diags > 2) {
+    int max_dist_after;
+    long avg_dist_after;
+    compute_edge_stats(base, max_dist_after, avg_dist_after);
+    op_printf("Before renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
+              max_dist_before, avg_dist_before);
+    op_printf("After  renumbering: maximum bandwidth = %d average bandwidth = %ld\n",
+              max_dist_after, avg_dist_after);
   }
-  avg_dist /= base->from->size;
-  op_printf("After renumbering: maximum bandwidth = %d average bandwidth = %d\n",max_dist,avg_dist);
+  return pctx.keys;
+}
 
-#endif
+/* Warn if, in some set, the Hilbert curve merged into one key the positions of
+   more than 1% of the core elements it ordered - on any rank, naming the worst:
+   those elements keep their previous relative order, so the curve resolves the
+   mesh too coarsely there. Elements at one position (two boundary faces of a
+   corner cell, given its centroid) cannot be separated and do not count.
+   Collective over OP_MPI_WORLD. */
+static void report_hilbert_keys(const std::vector<HilbertKeys> &keys) {
+  struct Shared {
+    double fraction;
+    int rank; // MPI_DOUBLE_INT
+  };
+  std::vector<Shared> mine(OP_set_index), worst(OP_set_index);
+  int rank;
+  MPI_Comm_rank(OP_MPI_WORLD, &rank);
+  for (int s = 0; s < OP_set_index; s++)
+    mine[s] = {keys[s].elements > 0 ? (double)(keys[s].points - keys[s].keys) / keys[s].elements : 0.0, rank};
+  MPI_Allreduce(mine.data(), worst.data(), OP_set_index, MPI_DOUBLE_INT, MPI_MAXLOC, OP_MPI_WORLD);
+  for (int s = 0; s < OP_set_index; s++)
+    if (worst[s].fraction > 0.01)
+      op_printf("WARNING: op_renumber: on rank %d the Hilbert curve gives %.1f%% of the core elements of set %s the "
+                "key of an element elsewhere, so they keep their previous order: the mesh is finer there than the "
+                "curve resolves\n", worst[s].rank, 100 * worst[s].fraction, OP_set_list[s]->name);
+}
+
+void op_renumber(op_map base) {
+  if (OP_part_list == nullptr)
+    op::mpi::fail("op_renumber: call op_partition first\n");
+  const ReorderMethod method = get_reorder_method(base->to);
+  const PropagateMethod propagate = get_propagate_method(base->to);
+  if (method == ReorderMethod::None) {
+    op_printf("op_renumber: OP_REORDER=none, nothing is reordered\n");
+    return;
+  }
+  op_printf("op_renumber: %s ordering of set %s through map %s, propagated by %s\n",
+            name_of(reorder_methods, method), base->to->name, base->name, name_of(propagate_methods, propagate));
+
+  const std::vector<HilbertKeys> keys = renumber_owned(base, method, propagate);
+  /* Every rank, reordered or not: other ranks' import lists name elements by
+     their owners' numbering, which has just changed. */
+  op_halo_refresh_imports();
+  report_hilbert_keys(keys);
 }
 
 extern "C" void op_renumber_ptr(int *ptr) {
-  op_map item_map = op_search_map_ptr(ptr);
-
-  if (item_map == NULL) {
-    printf("ERROR in op_renumber: op_map not found for %p pointer\n", (void*)ptr);
-    exit(-1);
-  }
-
-  op_renumber(item_map);
+  op_map map = op_search_map_ptr(ptr);
+  if (map == NULL)
+    op::mpi::fail("op_renumber: no op_map was declared from the map at %p\n", (void *)ptr);
+  op_renumber(map);
 }

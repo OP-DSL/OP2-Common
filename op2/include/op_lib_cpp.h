@@ -51,6 +51,19 @@
 #endif
 
 /*
+ * op_trigger_halo_exchanges taking the args directly, rather than as an array.
+ * The array form has C linkage and is declared in op_lib_core.h; this only
+ * packs the arguments for it.
+ */
+
+template <typename... Args>
+inline void op_trigger_halo_exchanges(int device, const char *name, op_set set,
+                                      op_arg arg0, Args... rest) {
+  op_arg args[] = {arg0, rest...};
+  op_trigger_halo_exchanges(device, name, set, 1 + (int)sizeof...(rest), args);
+}
+
+/*
  * run-time type-checking routines
  */
 

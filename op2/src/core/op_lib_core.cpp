@@ -48,6 +48,7 @@
 #include <unordered_map>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <fstream>
 
 /*
@@ -156,6 +157,16 @@ op_map op_search_map_ptr(int *map_ptr) {
   return NULL;
 }
 
+op_dat op_search_dat_ptr(const void *data) {
+  if (data == NULL) // a dat declared without data has no array to be found by
+    return NULL;
+  op_dat_entry *item;
+  TAILQ_FOREACH(item, &OP_dat_list, entries)
+    if (item->orig_ptr == data)
+      return item->dat;
+  return NULL;
+}
+
 /*check if map points to elements within set range*/
 void check_map(char const *name, op_set from, op_set to, int dim, int *map) {
 
@@ -249,11 +260,6 @@ void op_set_args(int argc, char *argv) {
     strncpy(temp, pch, 25);
     OP_mpi_test_frequency = atoi(temp + 13);
     op_printf("\n OP_mpi_test_frequency  = %d \n", OP_mpi_test_frequency);
-  }
-  pch = strstr(argv, "-gpudirect");
-  if (pch != NULL) {
-    OP_gpu_direct = 1;
-    op_printf("\n Enabling GPU Direct\n");
   }
   pch = strstr(argv, "OP_AUTO_SOA");
   if (pch != NULL) {
@@ -372,10 +378,6 @@ void op_init_core(int argc, char **argv, int diags) {
       op_printf ( "\n OP_cache_line_size  = %d \n", OP_cache_line_size );
     }
 
-    if ( strncmp ( argv[n], "-gpudirect", 10 ) == 0 ) {
-      OP_gpu_direct = 1;
-      op_printf ( "\n Enabling GPU Direct \n" );
-    }
     if ( strncmp ( argv[n], "OP_AUTO_SOA", 9 ) == 0 ) {
       OP_auto_soa = 1;
       op_printf ( "\n Enabling Automatic AoS->SoA Conversion\n" );
@@ -414,10 +416,56 @@ op_set op_decl_set_core(idx_l_t size, char const *name) {
   set->name = copy_str(name);
   set->exec_size = 0;
   set->nonexec_size = 0;
+  set->coords = NULL;
+  set->coords_map = NULL;
   OP_set_list[OP_set_index++] = set;
 
   return set;
 }
+
+// Whether a dat's type names a double, as C or Fortran spells it.
+static bool is_double_type(std::string_view type) {
+  if (type.ends_with(":soa"))
+    type.remove_suffix(4);
+  return type == "double" || type == "r8" || type == "real*8" || type == "real(8)";
+}
+
+void op_set_coords_derived(op_set set, op_map to_coords, op_dat coords) {
+  const char *type = coords->type;
+  if (coords->dim != 2 && coords->dim != 3) {
+    printf("op_set_coords error -- coordinates %s have dimension %d, not 2 or 3\n", coords->name, coords->dim);
+    exit(-1);
+  }
+  if (!is_double_type(type)) {
+    printf("op_set_coords error -- coordinates %s are %s, not double\n", coords->name, type);
+    exit(-1);
+  }
+  if (to_coords == NULL ? coords->set != set : to_coords->from != set || to_coords->to != coords->set) {
+    printf("op_set_coords error -- coordinates %s on set %s cannot give set %s its geometry%s%s\n", coords->name,
+           coords->set->name, set->name, to_coords == NULL ? "" : " through map ", to_coords == NULL ? "" : to_coords->name);
+    exit(-1);
+  }
+  set->coords = coords;
+  set->coords_map = to_coords;
+}
+
+void op_set_coords(op_set set, op_dat coords) { op_set_coords_derived(set, NULL, coords); }
+
+void op_set_coords_derived_ptr(op_set set, int *to_coords, double *coords) {
+  op_map map = to_coords != NULL ? op_search_map_ptr(to_coords) : NULL;
+  if (to_coords != NULL && map == NULL) {
+    printf("op_set_coords error -- no op_map was declared from the map at %p\n", (void *)to_coords);
+    exit(-1);
+  }
+  op_dat dat = op_search_dat_ptr(coords);
+  if (dat == NULL) {
+    printf("op_set_coords error -- no op_dat was declared from the coordinates at %p\n", (void *)coords);
+    exit(-1);
+  }
+  op_set_coords_derived(set, map, dat);
+}
+
+void op_set_coords_ptr(op_set set, double *coords) { op_set_coords_derived_ptr(set, NULL, coords); }
 
 op_map op_decl_map_core(op_set from, op_set to, int dim, int *imap,
                         char const *name) {
@@ -542,9 +590,6 @@ op_dat op_decl_dat_core(op_set set, int dim, char const *type, int size,
   dat->name = copy_str(name);
   dat->type = copy_str(type);
   dat->size = dim * size;
-  dat->mpi_buffer = NULL;
-  dat->buffer_d = NULL;
-  dat->buffer_d_r = NULL;
   dat->dirty_hd = 0;
   dat->dirtybit = 1;
 
@@ -611,9 +656,6 @@ op_dat op_decl_dat_overlay_core(op_set set, op_dat dat) {
   overlay_dat->type = dat->type;
   overlay_dat->size = dat->size;
   overlay_dat->user_managed = dat->user_managed;
-  overlay_dat->mpi_buffer = dat->mpi_buffer;
-  overlay_dat->buffer_d = dat->buffer_d;
-  overlay_dat->buffer_d_r = dat->buffer_d_r;
   overlay_dat->dirty_hd = dat->dirty_hd;
   overlay_dat->dirtybit = dat->dirtybit;
 
@@ -1642,6 +1684,19 @@ idx_l_t op_get_size_local_full(op_set set) { return set->exec_size + set->nonexe
 int op_mpi_get_test_frequency() { return OP_mpi_test_frequency; }
 
 int op_is_partitioned() { return OP_is_partitioned; }
+
+void op_trigger_halo_exchanges(int device, const char *name, op_set set, int nargs,
+                               op_arg *args) {
+  (void)name;
+
+  op_mpi_halo_exchanges(set, nargs, args, device);
+  op_mpi_wait_all(nargs, args);
+
+  if (device == 1)
+    op_mpi_set_dirtybit(nargs, args);
+  else
+    op_mpi_set_dirtybit_cuda(nargs, args);
+}
 
 #ifdef __cplusplus
 }

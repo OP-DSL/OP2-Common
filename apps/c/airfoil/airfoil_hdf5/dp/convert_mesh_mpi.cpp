@@ -69,6 +69,17 @@ double gam, gm1, cfl, eps, mach, alpha, qinf[4];
 
 #include "op_seq.h"
 
+static int compute_local_size(int global_size, int mpi_comm_size,
+                              int mpi_rank) {
+  int local_size = global_size / mpi_comm_size;
+  int remainder = (int)fmod(global_size, mpi_comm_size);
+
+  if (mpi_rank < remainder) {
+    local_size = local_size + 1;
+  }
+  return local_size;
+}
+
 static void scatter_double_array(double *g_array, double *l_array,
                                  int comm_size, int g_size, int l_size,
                                  int elem_size) {

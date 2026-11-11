@@ -25,7 +25,6 @@ top =  """
 
 #include "op_lib_cpp.h"
 
-static int op2_stride = 1;
 #define OP2_STRIDE(arr, idx) arr[idx]
 
 // scratch space to use for double counting in indirect reduction
@@ -149,7 +148,7 @@ for nargs in range (1,maxargs+1):
     f.write('  op_timers_core(&cpu_t1, &wall_t1);\n\n')
 
     f.write('  // MPI halo exchange and dirty bit setting, if needed\n')
-    f.write('  int n_upper = op_mpi_halo_exchanges(set, '+str(nargs)+', args);\n\n')
+    f.write('  int n_upper = op_mpi_halo_exchanges(set, '+str(nargs)+', args, 1);\n\n')
     f.write('  // loop over set elements\n')
     f.write('  int halo = 0; \n\n')
 
@@ -184,12 +183,7 @@ for nargs in range (1,maxargs+1):
 
     f.write('\n  // update timer record\n')
     f.write('  op_timers_core(&cpu_t2, &wall_t2);\n')
-    f.write('#ifdef COMM_PERF\n')
-    f.write('  void *k_i = op_mpi_perf_time(name, wall_t2 - wall_t1);\n')
-    f.write('  op_mpi_perf_comms(k_i, '+str(nargs)+', args);\n')
-    f.write('#else\n')
-    f.write('  op_mpi_perf_time(name, wall_t2 - wall_t1);\n')
-    f.write('#endif\n\n')
+    f.write('  op_mpi_perf_time(name, wall_t2 - wall_t1);\n\n')
 
     for n in range (0, nargs):
         f.write('  if(arg'+str(n)+'.idx < -1) {\n')
