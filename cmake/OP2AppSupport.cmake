@@ -581,10 +581,6 @@ function(_op2_add_variant_executable)
         endif()
     endif()
 
-    if(_mpi)
-        target_compile_definitions(${_tgt} PRIVATE USE_MPI)
-    endif()
-
     # op_gpu_shims.h / op_f2c_helpers.h gate their gpu* aliases on these.
     if(_base MATCHES "^(cuda|c_cuda)$")
         target_compile_definitions(${_tgt} PRIVATE OP2_CUDA)
@@ -630,6 +626,15 @@ function(_op2_add_variant_executable)
         endif()
     endif()
 
+    # A translated Fortran kernel's intrinsics set no errno, as gfortran's
+    # do not; with it, each sqrt keeps a branch to libm and no loop calling
+    # one vectorises.
+    if(_A_LANGUAGE STREQUAL "fortran" AND _base STREQUAL "c_seq"
+            AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
+        target_compile_options(${_tgt} PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-fno-math-errno>)
+    endif()
+
     # HIP variants reuse .cu/.hip.cpp sources; promote them to LANGUAGE HIP.
     set(_master_lang "${_op2_variant_${_A_LANGUAGE}_${_base}_master_lang}")
     if(_master_lang STREQUAL "HIP")
@@ -642,12 +647,14 @@ function(_op2_add_variant_executable)
         endforeach()
     endif()
 
-    # CUDA Fortran, as in the core library.
+    # CUDA Fortran, as in the core library; the link needs -cuda too, for
+    # the CUDA Fortran runtime.
     if(_A_LANGUAGE STREQUAL "fortran" AND _base STREQUAL "cuda"
             AND CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC|PGI")
         target_compile_definitions(${_tgt} PRIVATE OP2_WITH_CUDAFOR)
         target_compile_options(${_tgt} PRIVATE
             $<$<COMPILE_LANGUAGE:Fortran>:-cuda>)
+        target_link_options(${_tgt} PRIVATE -cuda)
     endif()
 
     # Explicit linker language: mixed Fortran + .cu/.hip.cpp targets must link

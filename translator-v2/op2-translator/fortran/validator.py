@@ -1,7 +1,8 @@
+import itertools
 import logging
 from collections import Counter
 from fractions import Fraction
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Set
+from typing import Dict, List, Optional, Tuple, Set
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
@@ -9,20 +10,24 @@ import fparser.two.utils as fpu
 import fortran.translator.kernels as ftk
 import fortran.util as fu
 import op as OP
-from op import OpError
-from store import Application, Entity, Function, Program
-from util import find, safeFind
+from diagnostics import OpError
+from store import Application, Function, Program
+from util import safeFind
 
 logger = logging.getLogger(__name__)
 
 
-def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
+def validateLoop(loop: OP.Loop, program: Program, app: Application, alias_warnings: str = "all") -> None:
+    # No Fortran target, the seq fallback included, indexes a vector map.
+    if any(isinstance(arg, OP.ArgDat) and arg.map_idx is not None and arg.map_idx < -1 for arg in loop.args):
+        raise OpError(f"{loop.kernel}: vector map arguments are not supported in Fortran", loop.loc)
+
     kernel_entities = app.findEntities(loop.kernel, program, [])
 
     if len(kernel_entities) == 0:
-        raise OpError(f"unable to find kernel subroutine for {loop.kernel}")
+        raise OpError(f"unable to find kernel subroutine for {loop.kernel}", loop.loc)
     elif len(kernel_entities) > 1:
-        raise OpError(f"ambiguous kernel subroutine for {loop.kernel}")
+        raise OpError(f"ambiguous kernel subroutine for {loop.kernel}", loop.loc)
 
     dependencies, unknown_dependencies = ftk.extractDependencies(kernel_entities, app, [])
     entities = kernel_entities + list(filter(lambda e: isinstance(e, Function), dependencies))
@@ -34,7 +39,7 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
     seen_entity_names = []
     for entity in entities:
         if entity.name in seen_entity_names:
-            raise OpError(f"ambiguous subroutine/function {entity.name} used in kernel {loop.kernel}")
+            raise OpError(f"ambiguous subroutine/function {entity.name} used in kernel {loop.kernel}", loop.loc)
 
         seen_entity_names.append(entity.name)
 
@@ -44,13 +49,6 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
             f"(expected: {len(kernel_entities[0].parameters)}, kernel subroutine: {loop.kernel})",
             loop.loc,
         )
-        return
-
-    # for arg in loop.args:
-    #     if isinstance(arg, OP.ArgDat) and arg.map_id is not None and arg.access_type == OP.AccessType.WRITE:
-    #         print(f"{loop.loc}: Warning: {loop.kernel} indirect OP_WRITE\n")
-    #         # loop.fallback = True
-    #         break
 
     # Check parameter/const conflict and const writes
     const_ptrs = app.constPtrs()
@@ -82,36 +80,6 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         for name in fpu.walk(entity.ast, f2003.Name):
             if name.string.lower() in const_ptrs and name.string.lower() not in entity.parameters:
                 loop.addConst(name.string.lower())
-
-    # Check for disallowed statements (IO, exit, ...)
-    # for entity in entities:
-    #     violations = []
-    #     checkStatements(entity, violations)
-
-    #     if len(violations) > 0:
-    #         printViolations(loop, "invalid statements", violations)
-    #         loop.fallback = True
-
-    # Check for slice expressions for args with stride insertion (gbl reductions, dats)
-    for idx, arg in enumerate(loop.args):
-        if not (
-            isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC, OP.AccessType.WORK]
-        ) and not isinstance(arg, OP.ArgDat):
-            continue
-
-        if (isinstance(arg, OP.ArgGbl) and arg.dim == 1) or (isinstance(arg, OP.ArgDat) and loop.dat(arg).dim == 1):
-            continue
-
-        violations = []
-        fu.mapParam(kernel_entities[0], idx, entities, checkSlice, entities, violations)
-
-        if len(violations) > 0:
-            param_name = kernel_entities[0].parameters[idx]
-            printViolations(
-                loop, "element-wise access incompatible with stride insertion", violations, (idx, param_name)
-            )
-
-            loop.fallback = True
 
     # Check for args marked OP_READ or arg_idx but appear to be written
     for idx, arg in enumerate(loop.args):
@@ -180,6 +148,48 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
                             violations, (idx, param_name))
             loop.fallback = True
 
+    # Check that dummies which may receive one element of a dat, at least
+    # once to modify it, have the target attribute: seq and genseq pass both
+    # as references into the dat, and Fortran lets a compiler assume that
+    # modified dummies do not overlap.  One map at different indices reaches
+    # one element only where the map repeats an entry in a row, which
+    # alias_warnings except-map-indices leaves out.
+    violations = []
+    for i, j in itertools.combinations(range(len(loop.args)), 2):
+        if alias_warnings == "none":
+            break
+
+        first, second = loop.args[i], loop.args[j]
+
+        if not isinstance(first, OP.ArgDat) or not isinstance(second, OP.ArgDat) or first.dat_id != second.dat_id:
+            continue
+
+        if first.access_type == OP.AccessType.READ and second.access_type == OP.AccessType.READ:
+            continue
+
+        map_indices = first.map_id is not None and first.map_id == second.map_id and first.map_idx != second.map_idx
+        if map_indices and alias_warnings == "except-map-indices":
+            continue
+
+        params = [kernel_entities[0].parameters[i], kernel_entities[0].parameters[j]]
+        missing = [p for p in params if not fu.hasTarget(kernel_entities[0], p)]
+
+        if len(missing) == 0:
+            continue
+
+        dat = loop.dat(first).ptr
+        if map_indices:
+            meet = f"share an element of {dat} where {loop.map(first).ptr} repeats an entry in a row"
+        else:
+            meet = f"may share an element of {dat}"
+
+        violations.append(
+            f"args {i + 1} ({params[0]}) and {j + 1} ({params[1]}) {meet}: declare {', '.join(missing)} with target"
+        )
+
+    if len(violations) > 0:
+        printViolations(loop, "may receive one element through two dummies, one modified, without target", violations)
+
     # Check for runtime-dimension stack arrays (very slow for GPU)
     violations = []
     for entity in entities:
@@ -189,11 +199,43 @@ def validateLoop(loop: OP.Loop, program: Program, app: Application) -> None:
         printViolations(loop, "runtime dimension local arrays", violations)
 
 
+# Whether the legacy targets, which rewrite each element access of a
+# reduction or a dat argument to insert its stride, can do so for every such
+# argument the kernel uses: a slice of one with dim > 1 makes them fall back
+# (the f2c targets take slices as spans).
+def stridesInsertable(loop: OP.Loop, program: Program, app: Application) -> bool:
+    kernel_entities = app.findEntities(loop.kernel, program, [])
+    dependencies, _ = ftk.extractDependencies(kernel_entities, app, [])
+    entities = kernel_entities + list(filter(lambda e: isinstance(e, Function), dependencies))
+
+    insertable = True
+    for idx, arg in enumerate(loop.args):
+        if not (
+            isinstance(arg, OP.ArgGbl) and arg.access_type in [OP.AccessType.MIN, OP.AccessType.MAX, OP.AccessType.INC, OP.AccessType.WORK]
+        ) and not isinstance(arg, OP.ArgDat):
+            continue
+
+        if (isinstance(arg, OP.ArgGbl) and arg.dim == 1) or (isinstance(arg, OP.ArgDat) and loop.dat(arg).dim == 1):
+            continue
+
+        violations = []
+        fu.mapParam(kernel_entities[0], idx, entities, checkSlice, entities, violations)
+
+        if len(violations) > 0:
+            param_name = kernel_entities[0].parameters[idx]
+            printViolations(
+                loop, "element-wise access incompatible with stride insertion", violations, (idx, param_name)
+            )
+            insertable = False
+
+    return insertable
+
+
 def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Optional[Tuple[int, str]] = None) -> None:
     if arg is not None:
-        header = f"{loop.loc}: Warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:"
+        header = f"{loop.loc}: warning: arg {arg[0] + 1} ({arg[1]}) of {loop.kernel} {warning}:"
     else:
-        header = f"{loop.loc}: Warning: {loop.kernel} {warning}:"
+        header = f"{loop.loc}: warning: {loop.kernel} {warning}:"
 
     lines = [header] + [f"    {v}" for v in violations[:5]]
     if len(violations) > 5:
@@ -201,29 +243,6 @@ def printViolations(loop: OP.Loop, warning: str, violations: List[str], arg: Opt
 
     logger.warning("\n".join(lines))
 
-
-def checkStatements(func: Function, violations: List[str]) -> None:
-    for node in fpu.walk(
-        func.ast,
-        (
-            f2003.Allocate_Stmt,
-            f2003.Backspace_Stmt,
-            f2003.Close_Stmt,
-            f2003.Deallocate_Stmt,
-            f2003.Endfile_Stmt,
-            f2003.Exit_Stmt,
-            f2003.Flush_Stmt,
-            f2003.Inquire_Stmt,
-            f2003.Open_Stmt,
-            f2003.Print_Stmt,
-            f2003.Read_Stmt,
-            f2003.Rewind_Stmt,
-            f2003.Stop_Stmt,
-            f2003.Wait_Stmt,
-            f2003.Write_Stmt,
-        ),
-    ):
-        violations.append(f"In {func.name}: {fu.getItem(node).line}")
 
 
 def checkRuntimeDimensionArrays(func: Function, consts: Set[str], violations: List[str]) -> None:

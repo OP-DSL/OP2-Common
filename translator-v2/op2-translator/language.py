@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, FrozenSet, List, Optional, Set, Dict
+from typing import Any, FrozenSet, List, Optional, Tuple
 
 from op import Type
 from store import Application, Program
@@ -15,9 +15,7 @@ class Lang(Findable["Lang"]):
 
     source_exts: List[str]
     include_ext: str
-    kernel_dir: bool
 
-    com_delim: str
     ast_is_serializable: bool
 
     fallback_wrapper_template: Optional[Path]
@@ -35,15 +33,15 @@ class Lang(Findable["Lang"]):
         pass
 
     @abstractmethod
-    def parseFile(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Any:
+    def parseFile(self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]) -> Any:
         pass
 
     @abstractmethod
-    def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
+    def parseProgram(self, path: Path, include_dirs: Tuple[Path, ...], defines: List[str]) -> Program:
         pass
 
     @abstractmethod
-    def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
+    def translateProgram(self, program: Program, include_dirs: Tuple[Path, ...], defines: List[str], force_soa: bool) -> str:
         pass
 
     @abstractmethod

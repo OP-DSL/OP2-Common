@@ -3,12 +3,10 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Callable, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
+from diagnostics import Location, OpError
 from util import ABDC, findIdx
-
-if TYPE_CHECKING:
-    from store import Location
 
 
 class AccessType(Enum):
@@ -29,21 +27,6 @@ class AccessType(Enum):
     @staticmethod
     def names() -> List[str]:
         return [x.name for x in list(AccessType)]
-
-
-class OpError(Exception):
-    message: str
-    loc: Optional[Location]
-
-    def __init__(self, message: str, loc: Optional[Location] = None) -> None:
-        self.message = message
-        self.loc = loc
-
-    def __str__(self) -> str:
-        if self.loc is not None:
-            return f"{self.loc}: OP error: {self.message}"
-        else:
-            return f"OP error: {self.message}"
 
 
 class Type:
@@ -216,6 +199,7 @@ class ArgInfo(Arg):
     dim: Optional[int]
     typ: Type
 
+    # The index of its min or max argument, from 0.
     ref: int
 
     def __str__(self) -> str:
@@ -250,7 +234,9 @@ class Loop:
         self.args = []
         self.args_expanded = []
 
-        self.consts = set()
+        # In the order the kernel uses them, so the generated code is the
+        # same each time: a dict as an ordered set.
+        self.consts = {}
 
         self.fallback = False
 
@@ -274,8 +260,21 @@ class Loop:
 
             dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
             self.dats.append(dat)
-        elif self.dats[dat_id].dim is None and dat_dim is not None:
-            self.dats[dat_id] = dataclasses.replace(self.dats[dat_id], dim=dat_dim)
+        else:
+            dat = self.dats[dat_id]
+            if dat.typ != dat_typ or dat.soa != dat_soa or (None not in [dat.dim, dat_dim] and dat.dim != dat_dim):
+
+                def what(dim: Optional[int], typ: Type, soa: bool) -> str:
+                    return f"{typ}{':soa' if soa else ''}" + (f" of dim {dim}" if dim is not None else "")
+
+                raise OpError(
+                    f"{dat_ptr} is passed as {what(dat_dim, dat_typ, dat_soa)} here, "
+                    f"but as {what(dat.dim, dat.typ, dat.soa)} by an earlier argument",
+                    loc,
+                )
+
+            if dat.dim is None and dat_dim is not None:
+                self.dats[dat_id] = dataclasses.replace(dat, dim=dat_dim)
 
         map_id = None
         if map_ptr is not None:
@@ -343,7 +342,7 @@ class Loop:
         return idx
 
     def addConst(self, const: str) -> None:
-        self.consts.add(const)
+        self.consts.setdefault(const, None)
 
     def arg(self, x: Union[Dat, int]) -> Optional[Arg]:
         if isinstance(x, Dat):

@@ -3,32 +3,41 @@ import re
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils as fpu
 
+from diagnostics import OpError
 from store import Program
 
 
 def translateProgram2(program: Program, force_soa: bool) -> str:
-    src = program.source
-    kernel_id = 1
-
-    def repl(m):
-        nonlocal kernel_id
-
-        r = f'{m.group(1)}call op2_k_{program.path.stem}_{kernel_id}_{m.group(2)}("{m.group(2)}", '
-        kernel_id += 1
-
-        return r
-
     flags = re.MULTILINE | re.IGNORECASE
 
-    src = re.sub(r"^(\s*)call\s*op_par_loop_\d+\s*\(\s*(\w+)\s*,\s*", repl, src, flags=flags)
+    # A call anywhere on a line outside a comment, if (...) call op_par_loop_2(...)
+    # too, its kernel name perhaps on a continuation line.
+    loop_call = re.compile(r"^([^!\n]*?)\bcall\s*op_par_loop_\d+\s*\(\s*(?:&\s*)?\w+\s*(?:&\s*)?,\s*", flags)
+
+    calls = len(loop_call.findall(program.source))
+    if calls != len(program.loops):
+        raise OpError(f"{program.path}: found {calls} op_par_loop calls to rewrite, but parsed {len(program.loops)}")
+
+    loops = iter(program.loops)
+
+    def repl(m: re.Match) -> str:
+        loop = next(loops)
+        return f'{m.group(1)}call op2_k_{loop.name}("{loop.kernel}", '
+
+    src = loop_call.sub(repl, program.source)
     src = re.sub(r"^(\s*)(use op2_fortran_reference)", r"\1\2\n\1use op2_kernels", src, flags=flags)
+
+    if force_soa:
+        src = re.sub(
+            r"\bcall\s+(op_init|op_init_base|op_mpi_init)\s*\(([^()]*)\)", r"call \1_soa(\2, 1)", src, flags=flags
+        )
 
     return src
 
 
 def translateProgram(program: Program, force_soa: bool) -> str:
     ast = program.ast
-    kernel_id = 1
+    loops = iter(program.loops)
 
     for call in fpu.walk(ast, f2003.Call_Stmt):
         name = fpu.get_child(call, f2003.Name)
@@ -54,13 +63,12 @@ def translateProgram(program: Program, force_soa: bool) -> str:
         args = fpu.get_child(call, f2003.Actual_Arg_Spec_List)
         arg_list = list(args.items)
 
-        kernel_name = arg_list[0].string.lower()
+        loop = next(loops)
 
-        arg_list[0] = f2003.Char_Literal_Constant(f'"{kernel_name}"')
+        arg_list[0] = f2003.Char_Literal_Constant(f'"{loop.kernel}"')
         args.items = tuple(arg_list)
 
-        name.string = f"op2_k_{program.path.stem}_{kernel_id}_{kernel_name}"
-        kernel_id += 1
+        name.string = f"op2_k_{loop.name}"
 
     for main_program in fpu.walk(ast, f2003.Main_Program):
         spec = fpu.get_child(main_program, f2003.Specification_Part)
