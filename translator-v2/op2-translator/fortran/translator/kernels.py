@@ -10,7 +10,7 @@ from op import OpError
 from store import Application, Entity, Function
 from util import find, safeFind
 
-clobber_funcs = ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump"]
+clobber_funcs = ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump", "hyd_stop"]
 clobber_funcs = clobber_funcs + [f"{func}_hydrales" for func in clobber_funcs]
 
 

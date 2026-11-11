@@ -12,6 +12,7 @@ import fparser.two.Fortran2003 as f2003
 import fparser.two.utils
 import pcpp
 from fparser.common.readfortran import FortranStringReader
+from fparser.common.sourceinfo import FortranFormat
 from fparser.two.parser import ParserFactory
 from fparser.two.utils import Base, _set_parent
 
@@ -316,7 +317,12 @@ class Fortran(Lang):
         source, includes = self.preprocess(path, include_dirs, defines)
 
         try:
+            # fparser's content sniffing misclassifies free-form sources with a
+            # long leading comment run as fixed form; the file extension is
+            # authoritative (numbered suffixes are free form, as in gfortran).
+            is_free = path.suffix.lower() in (".f90", ".f95", ".f03", ".f08")
             reader = FortranStringReader(source, include_dirs=list(include_dirs))
+            reader.set_format(FortranFormat(is_free, False))
             ast = self.parser(reader)
         except fparser.two.utils.FortranSyntaxError as err:
             raise FortranSyntaxError(str(err), path.name)
