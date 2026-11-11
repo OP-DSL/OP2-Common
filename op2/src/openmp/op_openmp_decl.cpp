@@ -35,6 +35,7 @@
  * of the OpenMP back-end
  */
 
+#include <op2/env.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
 
@@ -51,6 +52,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
+  op::env::finish();
 }
 
 #ifdef __cplusplus
@@ -61,6 +63,7 @@ void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
   (void)global; // Mark as unused
   (void)local;  // Mark as unused
   op_init_core(argc, argv, diags);
+  op::env::finish();
 }
 
 void op_mpi_init_soa(int argc, char **argv, int diags, int global, int local,

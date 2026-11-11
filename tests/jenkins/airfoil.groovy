@@ -1,88 +1,24 @@
-/* -------------------- Helper Functions -------------------- */
+/* Airfoil (plain, HDF5 and temporary-dat, double precision) through CTest:
+   OP2 is configured with its apps and their tests (tests/apps), every
+   variant built, and each run to its own validation against a downloaded
+   mesh. */
 
-def getBinary(mesh, optimisation) {
-
-    if (mesh in ["plain","tempdats"] && optimisation.startsWith("mpi")) {
-        return "airfoil_par_${optimisation}"
-    }
-
-    return "airfoil_${optimisation}"
-}
-
-def getDir(mesh) {
-    return "OP2-Common/apps/c/airfoil/airfoil_${mesh}/dp"
-}
-
-def runAirfoil(mesh, optimisation) {
-
-    def binary = getBinary(mesh, optimisation)
-    def dirPath = getDir(mesh)
-
-    dir(dirPath) {
-
-        if (binary.contains("mpi")) {
-            sh "mpirun -np 8 ./${binary} > output_${mesh}_${binary}.txt"
-        } else {
-            sh "./${binary} > output_${mesh}_${binary}.txt"
-        }
-    }
-}
-
-def validateAirfoil(mesh, optimisation) {
-
-    def binary = getBinary(mesh, optimisation)
-
-    sh """
-    grep -q 'This test is considered PASSED' \
-    OP2-Common/apps/c/airfoil/airfoil_${mesh}/dp/output_${mesh}_${binary}.txt
-    """
-}
-
-def archiveAirfoil(mesh, optimisation, artifactDir) {
-
-    def binary = getBinary(mesh, optimisation)
-
-    sh """
-    cp OP2-Common/apps/c/airfoil/airfoil_${mesh}/dp/output_${mesh}_${binary}.txt ${artifactDir}/
-    """
-
-    archiveArtifacts artifacts: "${artifactDir}/output_${mesh}_${binary}.txt", allowEmptyArchive: true
-}
-
-/* -------------------- Pipeline -------------------- */
 pipeline {
     agent any
 
-    environment {
-        OP2_COMPILER = "gnu"
-        OMP_NUM_THREADS = "8"
+    // The defaults are the CI machine's; a test instance points them at its
+    // own clone and environment.
+    parameters {
+        string(name: 'OP2_REPO', defaultValue: 'https://github.com/OP-DSL/OP2-Common.git',
+               description: 'OP2 repository to build and test')
+        string(name: 'OP2_BRANCH', defaultValue: 'OP2_refactor', description: 'Its branch')
+        string(name: 'ENV_SCRIPT', defaultValue: '/home/zl/work3/OP2-Common/scripts/zam_gnu',
+               description: 'Script sourced for the compilers and dependency prefixes')
     }
 
     stages {
         stage('Setup') {
             parallel {
-                stage('Load OP2 Environment') {
-                    steps {
-                        script {
-                            def vars = sh(
-                                script: '''
-                                #!/bin/bash
-                                . /etc/profile
-                                . /home/zl/work3/OP2-Common/scripts/zam_gnu
-                                env
-                                ''',
-                                returnStdout: true
-                            ).trim().split("\n")
-                
-                            for (v in vars) {
-                                def pair = v.split("=",2)
-                                if (pair.length == 2) {
-                                    env[pair[0]] = pair[1]
-                                }
-                            }
-                        }
-                    }
-                }
                 stage('Create Artifact Folder') {
                     steps {
                         script {
@@ -97,220 +33,57 @@ pipeline {
                 stage('Checkout OP2-Common') {
                     steps {
                         dir('OP2-Common') {
-                            git url: 'https://github.com/OP-DSL/OP2-Common.git', branch: 'OP2_refactor'
-
-                            sh '''
-                            FILE=makefiles/dependencies/parmetis.mk
-                
-                            if ! grep -q "\\-lGKlib" "$FILE"; then
-                                echo "Adding -lGKlib"
-                
-                                sed -i 's/^[[:space:]]*PARMETIS_LINK.*/  PARMETIS_LINK ?= -lparmetis -lmetis -lGKlib/' "$FILE"
-                            fi
-                
-                            echo "Current line:"
-                            grep PARMETIS_LINK "$FILE"
-                            '''
+                            git url: params.OP2_REPO, branch: params.OP2_BRANCH
                         }
                     }
                 }
             }
         }
 
-        stage('Build OP2') {
+        // Each shell step sources ENV_SCRIPT for the compilers and dependency
+        // prefixes.
+        stage('Configure OP2') {
             steps {
-                dir('OP2-Common/op2') {
-                    sh 'make config'
-                    sh 'make clean'
-                    sh 'make config'
-                    sh 'make -j'
-                }
-            }
-        }
-        
-        stage('Build airfoil C') {
-            parallel {
-                stage("Build airfoil_plain") {
-                    steps {
-                        script {
-                            def targets = [
-                                "airfoil_seq",
-                                "airfoil_genseq",
-                                "airfoil_openmp",
-                                "airfoil_cuda",
-                                "airfoil_par_mpi_seq",
-                                "airfoil_par_mpi_genseq",
-                                "airfoil_par_mpi_openmp",
-                                "airfoil_par_mpi_cuda"
-                            ]
-
-                            dir("OP2-Common/apps/c/airfoil/airfoil_plain/dp") {
-                                sh "make clean"
-
-                                for (t in targets) {
-                                    sh "make ${t}"
-                                }
-                            }
-                        }
-                    }
-                }
-                stage("Build airfoil_hdf5") {
-                    steps {
-                        script {
-                            def targets = [
-                                "airfoil_seq",
-                                "airfoil_genseq",
-                                "airfoil_openmp",
-                                "airfoil_cuda",
-                                "airfoil_mpi_seq",
-                                "airfoil_mpi_genseq",
-                                "airfoil_mpi_openmp",
-                                "airfoil_mpi_cuda"
-                            ]
-
-                            dir("OP2-Common/apps/c/airfoil/airfoil_hdf5/dp") {
-                                sh "make clean"
-
-                                for (t in targets) {
-                                    sh "make ${t}"
-                                }
-                            }
-                        }
-                    }
-                }
-                stage("Build airfoil_tempdats") {
-                    steps {
-                        script {
-                            def targets = [
-                                "airfoil_seq",
-                                "airfoil_genseq",
-                                "airfoil_openmp",
-                                "airfoil_cuda",
-                                "airfoil_par_mpi_seq",
-                                "airfoil_par_mpi_genseq",
-                                "airfoil_par_mpi_openmp",
-                                "airfoil_par_mpi_cuda"
-                            ]
-
-                            dir("OP2-Common/apps/c/airfoil/airfoil_tempdats/dp") {
-                                sh "make clean"
-
-                                for (t in targets) {
-                                    sh "make ${t}"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        stage('Download mesh') {
-            parallel {
-                stage('Download plain mesh') {
-                    steps {
-                        dir("OP2-Common/apps/c/airfoil/airfoil_plain/dp") {
-                            sh 'rm -f new_grid.dat && wget -nc https://op-dsl.github.io/docs/OP2/new_grid.dat'
-                        }
-                    }
-                }
-                stage('Download hdf5 mesh') {
-                    steps {
-                        dir("OP2-Common/apps/c/airfoil/airfoil_hdf5/dp") {
-                            sh 'rm -f new_grid.h5 && wget -nc -O new_grid.h5 https://github.com/ZamanLantra/OP2-ci_meshes/raw/refs/heads/main/airfoil/new_grid_dp.h5'
-                        }
-                    }
-                }
-                stage('Download tempdats mesh') {
-                    steps {
-                        dir("OP2-Common/apps/c/airfoil/airfoil_tempdats/dp") {
-                            sh 'rm -f new_grid.dat && wget -nc https://op-dsl.github.io/docs/OP2/new_grid.dat'
-                        }
-                    }
-                }
-            }
-        }
-        
-        stage('Airfoil Sequential Tests') {
-            matrix {
-                axes {
-                    axis {
-                        name 'MESH'
-                        values 'plain', 'hdf5', 'tempdats'
-                    }
-                    axis {
-                        name 'OPTIMISATION'
-                        values 'seq', 'genseq'
-                    }
-                }
-
-                stages {
-                    stage("Run airfoil") {
-                        steps {
-                            script {
-                                runAirfoil(MESH, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Validate output') {
-                        steps {
-                            script {
-                                validateAirfoil(MESH, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Archive output') {
-                        steps {
-                            script {
-                                archiveAirfoil(MESH, OPTIMISATION, env.ARTIFACT_BASE)
-                            }
-                        }
-                    }
+                dir('OP2-Common') {
+                    sh '''
+                    . /etc/profile
+                    . "$ENV_SCRIPT"
+                    rm -rf build
+                    cmake -B build -DCMAKE_BUILD_TYPE=Release \\
+                        -DPython3_EXECUTABLE="$(command -v python3)" \\
+                        -DCMAKE_CUDA_ARCHITECTURES=native \\
+                        -DHDF5_ROOT="$HDF5_PAR_INSTALL_PATH" \\
+                        -DParMETIS_ROOT="$PARMETIS_INSTALL_PATH" \\
+                        -DMETIS_ROOT="${METIS_INSTALL_PATH:-$PARMETIS_INSTALL_PATH}" \\
+                        -DKaHIP_ROOT="$KAHIP_INSTALL_PATH" \\
+                        -DOP2_ENABLE_APPS=ON -DOP2_ENABLE_TESTS=ON -DOP2_ENABLE_APP_TESTS=ON
+                    '''
                 }
             }
         }
 
-        stage('Airfoil Parallel Tests') {
-            matrix {
-                axes {
-                    axis {
-                        name 'MESH'
-                        values 'plain', 'hdf5', 'tempdats'
-                    }
-                    axis {
-                        name 'OPTIMISATION'
-                        values 'openmp', 'cuda', 'mpi_seq', 'mpi_genseq', 'mpi_openmp', 'mpi_cuda'
-                    }
+        stage('Build OP2 and the apps') {
+            steps {
+                dir('OP2-Common') {
+                    sh '. /etc/profile; . "$ENV_SCRIPT"; cmake --build build -j'
                 }
+            }
+        }
 
-                stages {
-                    stage("Run airfoil") {
-                        steps {
-                            script {
-                                runAirfoil(MESH, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Validate output') {
-                        steps {
-                            script {
-                                validateAirfoil(MESH, OPTIMISATION)
-                            }
-                        }
-                    }
-
-                    stage('Archive output') {
-                        steps {
-                            script {
-                                archiveAirfoil(MESH, OPTIMISATION, env.ARTIFACT_BASE)
-                            }
-                        }
-                    }
+        // A failed test marks the build unstable through the JUnit report.
+        stage('Run airfoil') {
+            steps {
+                dir('OP2-Common') {
+                    sh ". /etc/profile; . \"\$ENV_SCRIPT\"; ctest --test-dir build -L apps -R '^airfoil_(plain_dp|hdf5_dp|tempdats)_' -j8 --output-on-failure --output-junit airfoil.xml || true"
+                }
+            }
+            post {
+                always {
+                    junit testResults: 'OP2-Common/build/airfoil.xml', allowEmptyResults: false
+                    sh "cp OP2-Common/build/Testing/Temporary/LastTest*.log ${env.ARTIFACT_BASE}/ || true"
+                    archiveArtifacts artifacts: "${env.ARTIFACT_BASE}/*", allowEmptyArchive: true
                 }
             }
         }
     }
 }
-

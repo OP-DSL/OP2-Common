@@ -27,10 +27,14 @@ op2_add_app_variants(
     COMPILE_DEFINITIONS  ARG_PTRS
     EXCLUDE_VARIANTS mpi_*)
 
-op2_add_app_variants(
-    NAME     airfoil_hdf5
-    LANGUAGE fortran
-    SOURCES  ${_airfoil_srcs}
-    TRANSLATOR_ONLY_ARGS ${_airfoil_translator_args}
-    COMPILE_DEFINITIONS  HDF5
-    WITH_HDF5)
+# The HDF5 flavour uses the Fortran HDF5 declarations module, built only when
+# HDF5 is found.
+if(HDF5_FOUND)
+    op2_add_app_variants(
+        NAME     airfoil_hdf5
+        LANGUAGE fortran
+        SOURCES  ${_airfoil_srcs}
+        TRANSLATOR_ONLY_ARGS ${_airfoil_translator_args}
+        COMPILE_DEFINITIONS  HDF5
+        WITH_HDF5)
+endif()

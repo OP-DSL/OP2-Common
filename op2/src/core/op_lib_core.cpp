@@ -36,6 +36,8 @@
  */
 
 #include "op_lib_core.h"
+#include <op2/env.h>
+#include <op_profile.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
@@ -102,6 +104,18 @@ static char *copy_str(char const *src) {
   char *dest = (char *)op_calloc(len, sizeof(char));
   strcpy(dest, src);
   return dest;
+}
+
+/* The type names an argument may give beyond the canonical ones, each copied
+   once: an argument names its type on every call. Freed by op_exit_core. */
+static std::vector<char *> OP_type_names;
+
+static const char *type_name(char const *typ) {
+  for (char *name : OP_type_names)
+    if (strcmp(name, typ) == 0)
+      return name;
+  OP_type_names.push_back(copy_str(typ));
+  return OP_type_names.back();
 }
 
 int compare_sets(op_set set1, op_set set2) {
@@ -288,22 +302,23 @@ void op_init_core(int argc, char **argv, int diags) {
   op_printf("\n Initializing OP2\n");
   OP_diags = diags;
 
-  if (getenv("OP_HYBRID_BALANCE")) {
-    char *val = getenv("OP_HYBRID_BALANCE");
-    OP_hybrid_balance = atof(val);
+  if (op::env::parse_number("OP_HYBRID_BALANCE", OP_hybrid_balance))
     op_printf("\n OP_hybrid_balance  = %g \n", OP_hybrid_balance);
-  }
 
-  if (getenv("OP_AUTO_SOA") || OP_auto_soa == 1) {
+  // Any value turns it on, as the translators read it.
+  std::string auto_soa;
+  if (op::env::parse_text("OP_AUTO_SOA", auto_soa) || OP_auto_soa == 1) {
     OP_auto_soa = 1;
     op_printf("\n Enabling Automatic AoS->SoA Conversion\n");
   }
+  // The legacy C translator's.
+  op::env::known("OP_TIME_THREADS");
 
-  if (getenv("OP_WHITELIST")) {
-    char *val = getenv("OP_WHITELIST");
-    op_printf("\n Using kernel whitelist: %s\n", val);
+  std::string whitelist;
+  if (op::env::parse_text("OP_WHITELIST", whitelist)) {
+    op_printf("\n Using kernel whitelist: %s\n", whitelist.c_str());
 
-    std::ifstream file(val);
+    std::ifstream file(whitelist);
 
     if (!file.is_open()) {
       op_printf(" Error: could not open kernel whitelist, skipping\n");
@@ -316,27 +331,14 @@ void op_init_core(int argc, char **argv, int diags) {
     }
   }
 
-  if (getenv("OP_FALLBACK_MODE")) {
-    auto val = std::string(getenv("OP_FALLBACK_MODE"));
-    bool known_mode = false;
-
-    if (val == "silent") {
-      OP_fallback_mode = 1;
-      known_mode = true;
-    } else if (val == "warn" || val == "warning") {
-      OP_fallback_mode = 2;
-      known_mode = true;
-    } else if (val == "error") {
-      OP_fallback_mode = 3;
-      known_mode = true;
-    }
-
-    if (known_mode) {
-      op_printf("\n Using fallback mode: %s\n", val.c_str());
-    } else {
-      op_printf("\n Warning: Unknown fallback mode: %s\n", val.c_str());
-    }
+  constexpr op::env::Choice fallback_modes[] = {
+      {"silent", 1}, {"warn", 2}, {"warning", 2}, {"error", 3}};
+  if (op::env::parse_choice("OP_FALLBACK_MODE", fallback_modes, OP_fallback_mode)) {
+    const char *names[] = {"", "silent", "warn", "error"};
+    op_printf("\n Using fallback mode: %s\n", names[OP_fallback_mode]);
   }
+
+  op_profile_init();
 
 #ifdef OP_BLOCK_SIZE
   OP_block_size = OP_BLOCK_SIZE;
@@ -711,6 +713,10 @@ void op_exit_core() {
 
   OP_map_ptr_table = {};
 
+  for (char *name : OP_type_names)
+    free(name);
+  OP_type_names.clear();
+
   /*free doubl linked list holding the op_dats */
   op_dat_entry *item;
   while ((item = TAILQ_FIRST(&OP_dat_list))) {
@@ -906,7 +912,7 @@ op_arg op_arg_dat_core(op_dat dat, int idx, op_map map, int dim,
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
   else
-    arg.type = copy_str(typ); //Warning this is going to leak
+    arg.type = type_name(typ);
 
   arg.acc = acc;
 
@@ -960,7 +966,7 @@ op_arg op_opt_arg_dat_core(int opt, op_dat dat, int idx, op_map map, int dim,
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
   else
-    arg.type = copy_str(typ); //Warning this is going to leak
+    arg.type = type_name(typ);
 
   arg.acc = acc;
 
@@ -995,6 +1001,8 @@ op_arg op_arg_info_char(char *data, int dim, const char *typ, int size, int ref)
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
+  else
+    arg.type = type_name(typ);
 
   arg.acc = ref;
   arg.map_data_d = NULL;
@@ -1041,6 +1049,8 @@ op_arg op_arg_gbl_core(int opt, char *data, int dim, const char *typ, int size,
     arg.type = intstr;
   else if (strcmp(typ, "bool") == 0)
     arg.type = boolstr;
+  else
+    arg.type = type_name(typ);
 
   arg.acc = acc;
   arg.map_data_d = NULL;
@@ -1072,7 +1082,7 @@ void op_diagnostic_output() {
     printf("\n       set       size\n");
     printf("  -------------------\n");
     for (int n = 0; n < OP_set_index; n++) {
-      printf("%10s %10lld\n", OP_set_list[n]->name, OP_set_list[n]->size);
+      printf("%10s %10lld\n", OP_set_list[n]->name, (long long)OP_set_list[n]->size);
     }
 
     printf("\n       map        dim       from         to\n");
@@ -1313,7 +1323,7 @@ void op_print_dat_to_txtfile_core(op_dat dat, const char *file_name) {
     exit(2);
   }
 
-  if (fprintf(fp, "%lld %d\n", dat->set->size, dat->dim) < 0) {
+  if (fprintf(fp, "%lld %d\n", (long long)dat->set->size, dat->dim) < 0) {
     printf("error writing to %s\n", file_name);
     exit(2);
   }

@@ -43,6 +43,21 @@ if _clang_lib.clang_Cursor_Evaluate.restype is not c_void_p:
     _clang_lib.clang_EvalResult_dispose.argtypes = [c_void_p]
     _clang_lib.clang_EvalResult_dispose.restype = None
 
+# A cursor kind the bindings do not declare reads as None, where the bindings raise:
+# those pinned declare none of the attribute kinds 420 to 437, and libstdc++ 15 has
+# a flag_enum (437) in <ios>.
+_declared_cursor_kind = CursorKind.from_id
+
+
+def _cursor_kind(kind_id: int) -> Optional[CursorKind]:
+    try:
+        return _declared_cursor_kind(kind_id)
+    except ValueError:
+        return None
+
+
+CursorKind.from_id = staticmethod(_cursor_kind)  # type: ignore
+
 
 def parseTranslationUnit(path: Path, source: str, args: List[str]) -> TranslationUnit:
     translation_unit = Index.create().parse(

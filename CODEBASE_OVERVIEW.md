@@ -56,12 +56,11 @@ OP2 targets production-grade CFD/scientific computing applications such as [Roll
 ```
 OP2-Common/
 ├── op2/                    # Core runtime library
-│   ├── include/            # Public headers (API)
+│   ├── include/            # Flat headers (the C API); op2/ the newer tree
 │   └── src/                # Runtime source code (all backends)
 │       ├── core/           # Global state, set/map/dat management, execution plans
 │       ├── sequential/     # Sequential backend
 │       ├── openmp/         # OpenMP backend
-│       ├── openmp4/        # OpenMP 4.0 device-offload backend
 │       ├── cuda/           # CUDA backend
 │       ├── mpi/            # MPI backend (+ MPI+CUDA, MPI+HIP, HDF5 I/O, partitioning)
 │       ├── externlib/      # Bundled external libraries
@@ -71,8 +70,8 @@ OP2-Common/
 │   ├── fortran/            # Fortran apps: airfoil, jac1, reduction
 │   └── mesh_generators/    # MATLAB mesh generation scripts
 ├── translator/             # Legacy Python code generators (v1)
-│   ├── c/                  # C/C++ generators (seq, openmp, cuda, openacc, mpi_vec, openmp4)
-│   └── fortran/            # Fortran generators (mpiseq, openmp, cuda, openacc, openmp4)
+│   ├── c/                  # C/C++ generators (seq, openmp, cuda, openacc, mpi_vec)
+│   └── fortran/            # Fortran generators (mpiseq, openmp, cuda, openacc)
 ├── translator-v2/          # Next-generation translator (Jinja2 + libclang)
 │   └── op2-translator/     # Main Python package (CLI, parsers, Jinja templates)
 ├── makefiles/              # Shared GNU Make infrastructure
@@ -96,6 +95,12 @@ OP2-Common/
 
 ### 3.1 Public Headers (`op2/include/`)
 
+The flat headers below are the long-standing API, included by name
+(`<op_seq.h>`). Newer headers live in the `op2/` tree and are included by
+path (`<op2/env.h>`); a header's path below `op2/` is its namespace
+below `op::`. This directory installs as `include/op2`, the package's one
+include directory, so both spellings work in the source tree and installed.
+
 | Header | Purpose |
 |---|---|
 | `op_lib_core.h` | Core types: `op_set`, `op_map`, `op_dat`, `op_arg`, `op_plan`, `op_access`, … |
@@ -106,6 +111,7 @@ OP2-Common/
 | `op_openmp_rt_support.h` | OpenMP-specific execution plan functions (`op_plan_get`) |
 | `op_cuda_rt_support.h` | CUDA runtime functions (device init, memory allocation/transfer) |
 | `op_cuda_reduction.h` | GPU reduction templates using shared memory (INC, MAX, MIN, WRITE) |
+| `op2/env.h` | `op::env`: the environment variables' parser every layer reads its own through |
 | `op_gpu_shims.h` | Unified GPU shim layer mapping `gpu*` macros to CUDA or HIP |
 | `op_mpi_core.h` | MPI halo data structures: `halo_list`, import/export lists, MPI comms |
 | `op_lib_mpi.h` | MPI runtime state: exec/non-exec halo lists, partition tables |
@@ -114,7 +120,7 @@ OP2-Common/
 | `op_util.h` | Utility functions |
 | `SafeLong.h` | Debug wrapper type `SafeLong` for `idx_g_t` — detects integer overflow/underflow at runtime (enabled via `-DUSE_SAFELONG`) |
 | `fortran/` | Fortran C-interop headers |
-| `extern/` | Bundled external headers (`json.hpp`, `uthash.h`) |
+| `extern/` | Bundled external headers (`json.hpp`, `incbin.h`, `rapidhash.h`) |
 
 ### 3.2 Backend Sources (`op2/src/`)
 
@@ -124,7 +130,6 @@ OP2-Common/
 | `core/op_rt_support.cpp` | Execution plan construction (colouring for indirect loop safety) |
 | `sequential/` | Sequential reference backend |
 | `openmp/op_openmp_decl.cpp` | OpenMP multi-threaded backend |
-| `openmp4/op_openmp4_decl.cpp` | OpenMP 4.0 device-offload backend |
 | `cuda/op_cuda_decl.cpp` | CUDA backend declarations |
 | `cuda/op_cuda_rt_support.cpp` | CUDA runtime support (memory, device initialization) |
 | `mpi/op_mpi_core.cpp` | MPI halo creation and exchange |
@@ -295,7 +300,6 @@ make -C op2 -j$(nproc)
 | `seq` | C compiler |
 | `openmp` | C compiler + OpenMP support |
 | `hdf5` | C compiler + sequential HDF5 |
-| `openmp4` | C compiler + OpenMP offload support |
 | `cuda` | NVCC or NVHPC |
 | `hip` | HIP compiler |
 | `mpi` | MPI wrappers + parallel HDF5 |
@@ -342,9 +346,6 @@ Parallel to CUDA, targeting AMD ROCm. Enable by setting `HIP_INSTALL_PATH`.
 - Define `OP2_HIP` to activate HIP shims in `op_gpu_shims.h`.
 - Target architectures set via `HIP_ARCH` (e.g. `gfx90a`).
 
-### OpenMP 4.0 Device Offload
-For compilers with OpenMP target directive support (NVIDIA, AMD, Intel). Source: `op2/src/openmp4/`.
-
 ### MPI (Distributed Memory)
 All backends have an MPI variant (e.g. `mpi_seq`, `mpi_openmp`, `mpi_cuda`).
 
@@ -390,7 +391,6 @@ python3 op2.py path/to/myapp.cpp
 | `op2_gen_cuda_simple_hyb.py` | Hybrid OpenMP + CUDA |
 | `op2_gen_mpi_vec.py` | MPI + vectorization |
 | `op2_gen_openacc.py` | OpenACC |
-| `op2_gen_openmp4.py` | OpenMP 4.0 offload |
 
 **Fortran usage:**
 ```sh
@@ -505,7 +505,7 @@ MATLAB scripts in `apps/mesh_generators/`:
 | Dependency | Minimum Version | Notes |
 |---|---|---|
 | GNU Make | ≥ 4.2 | The build system |
-| C/C++ compiler | C++17 support | GCC, Clang, Intel oneAPI, Cray, IBM XL, NVHPC |
+| C/C++ compiler | C++20 support | GCC, Clang, Intel oneAPI, Cray, IBM XL, NVHPC |
 
 ### Optional
 
