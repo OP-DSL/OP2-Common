@@ -13,7 +13,7 @@ set(OP2_HAS_TRANSLATOR FALSE CACHE INTERNAL "")
 set(OP2_TRANSLATOR_COMMAND "" CACHE INTERNAL "")
 set(OP2_TRANSLATOR_DEPENDS "" CACHE INTERNAL "")
 
-find_package(Python3 3.8 COMPONENTS Interpreter QUIET)
+find_package(Python3 3.9 COMPONENTS Interpreter QUIET)
 if(NOT Python3_Interpreter_FOUND)
     message(STATUS "OP2: translator   = Python 3 not found - translated app variants will not be built")
     return()

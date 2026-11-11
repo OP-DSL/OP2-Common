@@ -59,7 +59,8 @@ contains
         real(8), dimension(2), intent(in) :: x1, x2
         real(8), dimension(4), intent(in) :: q1, q2
         real(8), intent(in) :: adt1, adt2
-        real(8), dimension(4), intent(inout) :: res1, res2
+        ! target: res1 and res2 are one cell where pecell repeats an entry.
+        real(8), dimension(4), intent(inout), target :: res1, res2
 
         real(8) :: dx, dy, mu, ri, p1, vol1, p2, vol2, f
 

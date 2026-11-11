@@ -4,23 +4,26 @@ import logging
 import os
 import re
 import subprocess
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from pathlib import Path
-from typing import FrozenSet, List, Optional, Set, Tuple
+from typing import FrozenSet, List, Set, Tuple
 
 import fparser.two.Fortran2003 as f2003
 import fparser.two.utils
 import pcpp
 from fparser.common.readfortran import FortranStringReader
+from fparser.common.sourceinfo import FortranFormat
 from fparser.two.parser import ParserFactory
 from fparser.two.utils import Base, _set_parent
 
 import fortran.parser
 import fortran.translator.program
+import fortran.util
 import fortran.validator
 import op as OP
+from diagnostics import LineMap, Location, ParseError
 from language import Lang
-from store import Application, Location, ParseError, Program
+from store import Application, Program
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +86,13 @@ def base_getnewargsex(self):
 Base.__getnewargs_ex__ = base_getnewargsex
 
 
-kind_selector_aliases = {"*PS": "*8"}
-
-
+# fparser takes a star kind as a number only (real*8): give it the number of a
+# named one (Hydra's real*PS).
 def kind_selector_match(string):
-    if string in kind_selector_aliases:
-        string = kind_selector_aliases[string]
+    if string.startswith("*"):
+        kind = fortran.util.kindValue(string[1:])
+        if kind is not None:
+            string = f"*{kind}"
 
     return f2003.Kind_Selector.match_(string)  # type: ignore
 
@@ -126,22 +130,10 @@ def walk(node_list, types=None, indent=0, debug=False):
 fparser.two.utils.walk = walk
 
 
-class FortranSyntaxError(Exception):
-    def __init__(self, message, filename):
-        super().__init__()
-
-        self.message = message
-        self.filename = filename
-
-    def __reduce__(self):
-        return (FortranSyntaxError, (self.message, self.filename))
-
-
 class Preprocessor(pcpp.Preprocessor):
     def __init__(self, lexer=None):
         super(Preprocessor, self).__init__(lexer)
 
-        self.line_directive = None
         self.includes: Set[Path] = set()
 
     def on_file_open(self, is_system_include, includepath):
@@ -167,23 +159,29 @@ class Preprocessor(pcpp.Preprocessor):
         super(Preprocessor, self).on_include_not_found(is_malformed, is_system_include, curdir, includepath)
 
 
+def kindArg(text: str) -> Tuple[str, int]:
+    name, sep, value = text.partition("=")
+    if not sep or not name.strip() or not value.strip().isdigit():
+        raise ArgumentTypeError(f"expected NAME=VALUE with a kind number, got {text}")
+    return name.strip().lower(), int(value)
+
+
 class Fortran(Lang):
     name = "Fortran"
 
     source_exts = ["F90", "F95", "f90"]
     include_ext = "inc"
 
-    com_delim = "!"
     ast_is_serializable = True
 
     fallback_wrapper_template = Path("fortran/fallback_wrapper.F90.jinja")
 
     consts_module = None
-    consts_module_ast = None
 
     extra_consts_list = None
     user_consts_module = None
     use_regex_translator = False
+    alias_warnings = "all"
 
     parser = None
     fpp = None
@@ -200,8 +198,27 @@ class Fortran(Lang):
         parser.add_argument(
             "--regex-program-translator", help="(Fortran) Use the regex-based program translator", action="store_true"
         )
+        parser.add_argument(
+            "--kind",
+            help="(Fortran) A kind name the application defines and its kind number, NAME=VALUE; repeatable",
+            type=kindArg,
+            action="append",
+            default=[],
+            metavar="NAME=VALUE",
+        )
+        parser.add_argument(
+            "--alias-warnings",
+            help="(Fortran) Warn about kernel dummies without target that may receive one element twice, one "
+            "modified: all, except-map-indices (not one map at two indices, which meet only where the map "
+            "repeats an entry in a row) or none",
+            choices=["all", "except-map-indices", "none"],
+            default="all",
+        )
 
     def parseArgs(self, args: Namespace) -> None:
+        for name, value in args.kind:
+            fortran.util.kinds[name] = value
+
         if args.consts_module is not None:
             self.consts_module = args.consts_module
             logger.debug(f"Using consts module: {self.consts_module}")
@@ -217,6 +234,8 @@ class Fortran(Lang):
         if args.regex_program_translator:
             self.use_regex_translator = True
             logger.debug("Using regex program translator")
+
+        self.alias_warnings = args.alias_warnings
 
         # fpp is a bundled binary, not a Python package - locate it relative
         # to this file's own install location (translator-v2/fpp/fpp
@@ -238,9 +257,13 @@ class Fortran(Lang):
             fortran.parser.parseFunctionDependencies(program, app)
 
         for loop, program in app.loops():
-            fortran.validator.validateLoop(loop, program, app)
+            fortran.validator.validateLoop(loop, program, app, self.alias_warnings)
 
-    def fppIncludes(self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]) -> Set[Path]:
+        # The regex program translator leaves op_decl_const alone.
+        if self.use_regex_translator and self.user_consts_module is None and len(app.consts()) > 0:
+            raise OP.OpError("the regex program translator needs --user-consts-module to declare consts")
+
+    def fppIncludes(self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]) -> Set[Path]:
         # A second fpp pass: -M reports the files it read but suppresses the
         # preprocessed output, so it cannot be folded into the run that
         # produces the source. Its output is one '<object>: <dependency>' rule
@@ -266,11 +289,13 @@ class Fortran(Lang):
 
         return includes
 
+    # The preprocessed source, without line markers, the files it included
+    # and where each of its lines came from.
     def preprocess(
-        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
-    ) -> Tuple[str, Set[Path]]:
+        self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]
+    ) -> Tuple[str, Set[Path], LineMap]:
         if self.fpp:
-            args = [self.fpp, "-P", "-free", "-f90"]
+            args = [self.fpp, "-free", "-f90"]
 
             for dir in include_dirs:
                 args.append(f"-I{dir}")
@@ -281,7 +306,8 @@ class Fortran(Lang):
             args.append(str(path))
 
             res = subprocess.run(args, capture_output=True, check=True)
-            return res.stdout.decode("utf-8"), self.fppIncludes(path, include_dirs, defines)
+            source, line_map = LineMap.strip(res.stdout.decode("utf-8"), str(path), pad=False)
+            return source, self.fppIncludes(path, include_dirs, defines), line_map
 
         preprocessor = Preprocessor()
 
@@ -303,35 +329,45 @@ class Fortran(Lang):
 
         source.seek(0)
 
-        source = source.read()
+        source, line_map = LineMap.strip(source.read(), str(path), pad=True)
 
         source = re.sub(r"__FILE__", f'"{path}"', source)
         source = re.sub(r"__LINE__", "0", source)
 
-        return source, preprocessor.includes
+        return source, preprocessor.includes, line_map
 
     def parseFile(
-        self, path: Path, include_dirs: FrozenSet[Path], defines: FrozenSet[str]
-    ) -> Tuple[f2003.Program, str, Set[Path]]:
-        source, includes = self.preprocess(path, include_dirs, defines)
+        self, path: Path, include_dirs: Tuple[Path, ...], defines: FrozenSet[str]
+    ) -> Tuple[f2003.Program, str, Set[Path], LineMap]:
+        source, includes, line_map = self.preprocess(path, include_dirs, defines)
 
         try:
+            # fparser's content sniffing misclassifies free-form sources with a
+            # long leading comment run as fixed form; the file extension is
+            # authoritative (numbered suffixes are free form, as in gfortran).
+            is_free = path.suffix.lower() in (".f90", ".f95", ".f03", ".f08")
             reader = FortranStringReader(source, include_dirs=list(include_dirs))
+            reader.set_format(FortranFormat(is_free, False))
             ast = self.parser(reader)
         except fparser.two.utils.FortranSyntaxError as err:
-            raise FortranSyntaxError(str(err), path.name)
+            # fparser says "at line N\n>>>text\nwhat", N in the preprocessed source.
+            found = re.match(r"at line (\d+)\n>>>(.*?)\n(.*)", str(err), re.S)
+            if found is None:
+                raise ParseError(f"syntax error: {err}", Location(str(path), 0))
+            what = found.group(3).strip() or "syntax error"
+            raise ParseError(f"{what}: {found.group(2).strip()}", line_map.locate(int(found.group(1))))
 
-        return ast, source, includes
+        return ast, source, includes, line_map
 
-    def parseProgram(self, path: Path, include_dirs: Set[Path], defines: List[str]) -> Program:
-        ast, source, includes = self.parseFile(path, frozenset(include_dirs), frozenset(defines))
+    def parseProgram(self, path: Path, include_dirs: Tuple[Path, ...], defines: List[str]) -> Program:
+        ast, source, includes, line_map = self.parseFile(path, include_dirs, frozenset(defines))
 
-        program = fortran.parser.parseProgram(ast, source, path)
+        program = fortran.parser.parseProgram(ast, source, path, line_map)
         program.includes = includes
 
         return program
 
-    def translateProgram(self, program: Program, include_dirs: Set[Path], defines: List[str], force_soa: bool) -> str:
+    def translateProgram(self, program: Program, include_dirs: Tuple[Path, ...], defines: List[str], force_soa: bool) -> str:
         if self.use_regex_translator:
             return fortran.translator.program.translateProgram2(program, force_soa)
 

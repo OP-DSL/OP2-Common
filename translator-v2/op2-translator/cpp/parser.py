@@ -9,8 +9,8 @@ from clang.cindex import Config, Cursor, CursorKind, Diagnostic, Index, Translat
 from clang.cindex import conf as clang_internal  # type: ignore
 
 import op as OP
-from store import Function, Location, ParseError, Program, Type
-from util import safeFind, findIdx
+from diagnostics import LineMap, Location, ParseError
+from store import Application, Entity, Function, Program, Type
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +35,34 @@ if libclang_path is not None:
 # clang_Cursor_Evaluate and segfaults on the subsequent getAsInt call.  Fix by
 # stamping the correct signatures on first import.  Idempotent.
 _clang_lib = clang_internal.lib
+CXEVAL_INT = 1  # CXEvalResultKind's CXEval_Int
 if _clang_lib.clang_Cursor_Evaluate.restype is not c_void_p:
     _clang_lib.clang_Cursor_Evaluate.argtypes = [Cursor]
     _clang_lib.clang_Cursor_Evaluate.restype = c_void_p
+    _clang_lib.clang_EvalResult_getKind.argtypes = [c_void_p]
+    _clang_lib.clang_EvalResult_getKind.restype = c_int
     _clang_lib.clang_EvalResult_getAsInt.argtypes = [c_void_p]
     _clang_lib.clang_EvalResult_getAsInt.restype = c_int
     _clang_lib.clang_EvalResult_dispose.argtypes = [c_void_p]
     _clang_lib.clang_EvalResult_dispose.restype = None
 
+# A cursor kind the bindings do not declare reads as None, where the bindings raise:
+# those pinned declare none of the attribute kinds 420 to 437, and libstdc++ 15 has
+# a flag_enum (437) in <ios>.
+_declared_cursor_kind = CursorKind.from_id
 
-def parseTranslationUnit(path: Path, source: str, args: List[str]) -> TranslationUnit:
+
+def _cursor_kind(kind_id: int) -> Optional[CursorKind]:
+    try:
+        return _declared_cursor_kind(kind_id)
+    except ValueError:
+        return None
+
+
+CursorKind.from_id = staticmethod(_cursor_kind)  # type: ignore
+
+
+def parseTranslationUnit(path: Path, source: str, args: List[str], line_map: LineMap) -> TranslationUnit:
     translation_unit = Index.create().parse(
         path,  # type: ignore
         unsaved_files=[(path, source)],  # type: ignore
@@ -52,11 +70,18 @@ def parseTranslationUnit(path: Path, source: str, args: List[str]) -> Translatio
         options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
     )
 
+    errors = []
     for diagnostic in iter(translation_unit.diagnostics):
-        # if diagnostic.severity >= Diagnostic.Error:
-        #     raise ParseError(diagnostic.spelling, parseLocation(diagnostic))
-
         logger.log(_DIAGNOSTIC_LEVELS.get(diagnostic.severity, logging.WARNING), str(diagnostic))
+        if diagnostic.severity >= Diagnostic.Error:
+            errors.append(diagnostic)
+
+    # A file that does not parse would translate wrongly or not at all.
+    if errors:
+        location = errors[0].location
+        if location.file is None or Path(location.file.name).resolve() == path.resolve():
+            raise ParseError(errors[0].spelling, line_map.locate(location.line, location.column))
+        raise ParseError(errors[0].spelling, Location(location.file.name, location.line, location.column))
 
     return translation_unit
 
@@ -83,19 +108,8 @@ def parseTypeRef(ref_node: Cursor, program: Program) -> None:
         if entity.ast == node:
             return
 
-    typ = Type(node.spelling, node, program)
-
-    for n in node.walk_preorder():
-        if n.kind != CursorKind.CALL_EXPR and n.kind != CursorKind.TYPE_REF:
-            continue
-
-        n = n.get_definition()
-
-        if n is None or Path(str(n.location.file)) != program.path:
-            continue
-
-        typ.depends.add(n.spelling)
-
+    typ = Type(node.spelling, node, program, key=node.get_usr())
+    addDependencies(typ, node, program)
     program.entities.append(typ)
 
 
@@ -110,29 +124,42 @@ def parseFunction(ref_node: Cursor, program: Program) -> None:
         if entity.ast == node:
             return
 
-    function = Function(node.spelling, node, program)
+    function = Function(node.spelling, node, program, key=node.get_usr())
 
     for n in node.get_children():
         if n.kind != CursorKind.PARM_DECL:
             continue
 
-        # param_type = n.type.get_canonical()
-        # typ, _ = parseType(param_type.spelling, parseLocation(n), True)
-
         function.parameters.append(n.spelling)
+
+    addDependencies(function, node, program)
+    program.entities.append(function)
+
+
+# The program's own functions and types entity's node calls or names, by key:
+# a member function's class for a call of it.  A call of one of the program's
+# function templates is kept apart for an error, should a kernel reach it.
+def addDependencies(entity: Entity, node: Cursor, program: Program) -> None:
+    members = [CursorKind.CONSTRUCTOR, CursorKind.DESTRUCTOR, CursorKind.CXX_METHOD, CursorKind.CONVERSION_FUNCTION]
 
     for n in node.walk_preorder():
         if n.kind != CursorKind.CALL_EXPR and n.kind != CursorKind.TYPE_REF:
             continue
 
-        n = n.get_definition()
-
-        if n is None or Path(str(n.location.file)) != program.path:
+        definition = n.get_definition()
+        if definition is None or Path(str(definition.location.file)) != program.path:
             continue
 
-        function.depends.add(n.spelling)
-
-    program.entities.append(function)
+        # A call resolves to the template's instantiation, which has arguments.
+        if definition.kind == CursorKind.FUNCTION_TEMPLATE or (
+            definition.kind == CursorKind.FUNCTION_DECL and definition.get_num_template_arguments() >= 0
+        ):
+            if isinstance(entity, Function):
+                entity.template_calls.append(n)
+        elif definition.kind in members:
+            entity.depends.add(definition.semantic_parent.get_usr())
+        else:
+            entity.depends.add(definition.get_usr())
 
 
 def parseLoops(translation_unit: TranslationUnit, program: Program) -> None:
@@ -174,7 +201,6 @@ def parseConst(args: List[Cursor], loc: Location) -> OP.Const:
     if len(args) != 3:
         raise ParseError("incorrect number of args passed to op_decl_const", loc)
 
-    # TODO dim may not be literal
     dim = parseIntExpression(args[0])
     typ, _ = parseType(parseStringLit(args[1]), loc)
     ptr = parseIdentifier(args[2], raw=False)
@@ -233,10 +259,10 @@ def parseArgDat(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
 
     dat_ptr = parseIdentifier(args[0])
 
-    map_idx = parseIntExpression(args[1])
+    map_idx = parseIntExpression(args[1], optional=True)
     map_ptr = None if macros.get(parseLocation(args[2])) == "OP_ID" else parseIdentifier(args[2])
 
-    dat_dim = parseIntExpression(args[3])
+    dat_dim = parseIntExpression(args[3], optional=True)
     dat_typ, dat_soa = parseType(parseStringLit(args[4]), loc)
 
     access_type = parseAccessType(args[5], loc, macros)
@@ -251,8 +277,11 @@ def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, mac
     if opt and len(args) != 5:
         raise ParseError("incorrect number of args passed to op_opt_arg_gbl", loc)
 
+    if opt:
+        args = args[1:]
+
     ptr = parseIdentifier(args[0])
-    dim = parseIntExpression(args[1])
+    dim = parseIntExpression(args[1], optional=True)
     typ, _ = parseType(parseStringLit(args[2]), loc)
 
     access_type = parseAccessType(args[3], loc, macros)
@@ -275,7 +304,7 @@ def parseArgInfo(loop: OP.Loop,  args: List[Cursor], loc: Location, macros: Dict
         raise ParseError("incorrect number of arguments for op_arg_info", loc)
 
     ptr = parseIdentifier(args[0])
-    dim = parseIntExpression(args[1])
+    dim = parseIntExpression(args[1], optional=True)
     typ, _ = parseType(parseStringLit(args[2]), loc)
 
     ref = parseIntExpression(args[3])
@@ -308,13 +337,20 @@ def parseIdentifier(node: Cursor, raw: bool = True) -> str:
     return node.spelling
 
 
-def parseIntExpression(node: Cursor) -> int:
+# A constant int expression's value; a runtime one is None where optional.
+def parseIntExpression(node: Cursor, optional: bool = False) -> Optional[int]:
     if node.type.kind != TypeKind.INT:
         raise ParseError("expected int expression", parseLocation(node))
 
     eval_result = clang_internal.lib.clang_Cursor_Evaluate(node)
-    val = clang_internal.lib.clang_EvalResult_getAsInt(eval_result)
-    clang_internal.lib.clang_EvalResult_dispose(eval_result)
+    val = None
+    if eval_result:
+        if clang_internal.lib.clang_EvalResult_getKind(eval_result) == CXEVAL_INT:
+            val = clang_internal.lib.clang_EvalResult_getAsInt(eval_result)
+        clang_internal.lib.clang_EvalResult_dispose(eval_result)
+
+    if val is None and not optional:
+        raise ParseError("expected a constant int expression", parseLocation(node))
 
     return val
 
@@ -374,17 +410,19 @@ def parseLocation(node: Cursor) -> Location:
     return Location(node.location.file.name, node.location.line, node.location.column)  # type: ignore
 
 
+# A node of program's preprocessed parse, at its place in the user's sources.
+def sourceLocation(node: Cursor, program: Program) -> Location:
+    file = node.location.file
+    if file is not None and Path(file.name).resolve() == program.path.resolve():
+        return program.locate(node.location.line, node.location.column)
+    return parseLocation(node)
+
+
 def descend(node: Cursor) -> Cursor:
     return next(node.get_children())
 
 
-def descend_opt(node: Optional[Cursor]) -> Optional[Cursor]:
-    if node is None:
-        return None
-
-    return next(node.get_children(), None)
-
-def findLoopConsts(program: Program) -> None:
+def findLoopConsts(app: Application, program: Program, consts: Dict[str, OP.Const]) -> None:
     for loop in program.loops:
         visited = set()
 
@@ -397,13 +435,20 @@ def findLoopConsts(program: Program) -> None:
 
             for node in func_cursor.walk_preorder():
                 if node.kind == CursorKind.DECL_REF_EXPR:
-                    const_id = findIdx(program.consts, lambda d: d.ptr == node.spelling)
-                    if const_id is not None:
-                        loop.addConst(program.consts[const_id])
+                    const = consts.get(node.spelling)
+                    if const is not None:
+                        loop.addConst(const)
                 elif node.kind == CursorKind.CALL_EXPR:
                     callee = node.referenced
-                    if callee is not None and callee.kind == CursorKind.FUNCTION_DECL:
-                        visit_function(callee)
+                    if callee is None or callee.kind != CursorKind.FUNCTION_DECL:
+                        continue
+                    # A prototype has no body: take the definition, here or in another file.
+                    definition = callee.get_definition()
+                    if definition is not None:
+                        visit_function(definition)
+                    else:
+                        for entity in app.findByKey(callee.get_usr(), program):
+                            visit_function(entity.ast)
 
-        for entity in program.findEntities(loop.kernel, []):
+        for entity in app.findEntities(loop.kernel, program):
             visit_function(entity.ast)

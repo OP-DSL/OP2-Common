@@ -6,7 +6,7 @@ kernel dispatch code. It's invoked automatically by the CMake app-build helper
 
 ### Dependencies
 
-- Python >= 3.8
+- Python >= 3.9
 - Python packages: `jinja2`, `fparser`, `pcpp`, `libclang` (imports as
   `clang.cindex`). Install with `pip install -r requirements.txt`.
   `libclang` is imported only for C++ input, so a Python that cannot import
@@ -21,7 +21,7 @@ message explaining what's missing.
 ### Building the translator
 
 Nothing to build - the top-level OP2 `cmake -B build` step probes for a
-Python 3.8+ interpreter with the packages above already installed, and
+Python 3.9+ interpreter with the packages above already installed, and
 installs the translator's source alongside the runtime libs.
 
 Once installed, the translator is available at

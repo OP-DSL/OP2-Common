@@ -6,11 +6,11 @@ import fparser.two.utils as fpu
 import fortran.util as fu
 import op as OP
 from language import Lang
-from op import OpError
+from diagnostics import OpError
 from store import Application, Entity, Function
 from util import find, safeFind
 
-clobber_funcs = ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump"]
+clobber_funcs = ["hyd_print", "hyd_dump", "hyd_kill", "hyd_error_print", "hyd_error_dump", "hyd_stop"]
 clobber_funcs = clobber_funcs + [f"{func}_hydrales" for func in clobber_funcs]
 
 
@@ -244,7 +244,11 @@ def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) ->
         if not fu.isRef(node.items[0], param):
             return None, False
 
-        if not isinstance(node.items[2], f2003.Level_2_Expr):
+        rhs = node.items[2]
+        while isinstance(rhs, f2003.Parenthesis):
+            rhs = rhs.items[1]
+
+        if not isinstance(rhs, f2003.Level_2_Expr):
             raise OpError(f"Error: unexpected statement while inserting atomics: {node}")
 
         if isinstance(typ, OP.Int):
@@ -256,12 +260,13 @@ def insertAtomicInc2(node: f2003.Base, param: str, typ: OP.Type, c_api: bool) ->
         else:
             raise OpError(f"Error: unexpected arg type while inserting atomics: {typ}")
 
-        replaceNodes(node.items[2], lambda n: str(n) == str(node.items[0]), literal)
+        # Fortran names are case-insensitive.
+        replaceNodes(rhs, lambda n: str(n).lower() == str(node.items[0]).lower(), literal)
 
         if not c_api:
-            return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {node.items[2]})"), False
+            return f2003.Assignment_Stmt(f"op2_ret = atomicAdd({node.items[0]}, {rhs})"), False
         else:
-            return f2003.Call_Stmt(f"call atomicAdd({node.items[0]}, {node.items[2]})"), False
+            return f2003.Call_Stmt(f"call atomicAdd({node.items[0]}, {rhs})"), False
 
     if not isinstance(node, f2003.Base):
         return None, False

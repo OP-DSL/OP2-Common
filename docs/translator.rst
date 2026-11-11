@@ -22,7 +22,7 @@ Requirements
 
 The translator and its dependencies are bundled inside ``translator-v2/`` and are set up automatically by the OP2 Makefiles.  If you need to run the translator outside the Makefile (e.g., in a custom CI pipeline), install the dependencies manually:
 
-- Python >= 3.8
+- Python >= 3.9
 - Python packages: ``jinja2``, ``fparser`` (fparser2 API), ``libclang``, ``pcpp``
 
 .. code-block:: shell
@@ -51,7 +51,7 @@ Key options:
    * - Option
      - Description
    * - ``-t <target>``, ``--target <target>``
-     - Code-generation target (see `Targets`_ below). Can be specified multiple times to generate several targets in a single invocation.
+     - Code-generation target (see :ref:`translator:c/c++ targets` and :ref:`translator:fortran targets` below). Can be specified multiple times to generate several targets in a single invocation.
    * - ``-o <dir>``, ``--out <dir>``
      - Output directory for generated files. Defaults to the directory of the first input source file.
    * - ``-soa``, ``--force_soa``
@@ -218,6 +218,8 @@ When using the OP2 Makefiles (``makefiles/c_app.mk`` / ``makefiles/f_app.mk``), 
    * - ``VARIANT_FILTER_OUT``
      - A Make pattern used to *exclude* matching build variants from the set of targets printed and built. For example, ``VARIANT_FILTER_OUT := %hip%`` suppresses all HIP variants.
 
+The translator generates code only for the targets of the variants that remain, so an application can filter out a variant whose target rejects it.
+
 Example — restrict an application to CUDA variants only and pass an extra define:
 
 .. code-block:: make
@@ -235,10 +237,10 @@ Legacy Translator
 The v1 translator is a collection of standalone Python scripts located in ``translator/c/`` (C/C++) and ``translator/fortran/`` (Fortran). Each script targets a single parallelisation strategy.
 
 .. note::
-   The legacy translator is retained for compatibility. For new projects, use the :ref:`OP2 Translator <OP2 Translator>`.
+   The legacy translator is retained for compatibility. For new projects, use the :ref:`OP2 Translator <translator:op2 translator>`.
 
-C/C++ Targets
-^^^^^^^^^^^^^
+Legacy C/C++ Targets
+^^^^^^^^^^^^^^^^^^^^
 
 Scripts are located in ``translator/c/``. To use, uncomment the desired generator inside ``op2.py`` and invoke:
 
@@ -274,8 +276,8 @@ Available generators:
    * - ``op2_gen_openmp4.py``
      - OpenMP 4.0 device offload
 
-Fortran Targets
-^^^^^^^^^^^^^^^
+Legacy Fortran Targets
+^^^^^^^^^^^^^^^^^^^^^^
 
 Scripts are located in ``translator/fortran/``. To use, uncomment the desired generator inside ``op2_fortran.py`` and invoke:
 
