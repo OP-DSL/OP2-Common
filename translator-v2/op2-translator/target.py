@@ -76,6 +76,10 @@ class CHip(CCuda):
 class OpenMP(Target):
     name = "openmp"
 
+
+class OpenMPLegacy(Target):
+    name = "openmp_legacy"
+
     def defaultConfig(self) -> Dict[str, Any]:
         return {
             "vectorise": {"enable": True, "simd_len": 8, "blacklist": []},
@@ -90,3 +94,4 @@ Target.register(Hip)
 Target.register(CCuda)
 Target.register(CHip)
 Target.register(OpenMP)
+Target.register(OpenMPLegacy)

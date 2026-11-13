@@ -5,17 +5,21 @@ dats are translated per target (`translator-v2/`) and run by the library
 (`op2/`).
 
 ## Layout
-- `op2/`: the core library and the runtime (MPI, the CUDA and HIP data
-  layer, Fortran bindings).
-- `translator-v2/`: the Python translator and its Jinja templates.
+- `op2/include/op2/rt/`, `op2/src/rt/`: the loop runtime, in layers; read
+  `op2/include/op2/rt/AGENTS.md` before changing either.
+- `op2/` elsewhere: the core library and the legacy runtime (MPI, the CUDA and
+  HIP data layer, Fortran bindings).
+- `translator-v2/`: the Python translator and its Jinja templates; read
+  `translator-v2/AGENTS.md` before changing it.
 - `apps/`, `tests/`, `docs/`.
 
 ## Building and testing
 - Configure with CMake (`OP2_ENABLE_*`; the tests need `OP2_ENABLE_TESTS`, the
   applications' `OP2_ENABLE_APP_TESTS`).  Build past a failing target
   (`-- -k` under Make): otherwise later test binaries stay stale.
-- `ctest -L <label>` or `-R <regex>`; labels unit, functional and apps, plus
-  the language and serial or mpi.  GPU tests need a device.
+- `ctest -L <label>` or `-R <regex>`; labels unit, translator, functional
+  and apps, plus the language, serial or mpi, and strategy.  GPU tests need a
+  device.
 - Check each change by what it can break: the affected targets build without
   warnings, and the tests or runs that reach the change pass.  Full validation
   only at checkpoints and before a merge.
@@ -28,6 +32,8 @@ dats are translated per target (`translator-v2/`) and run by the library
 - Comments are short: what code is for, or the trap it guards.  Reasoning
   belongs in the commit or the review.
 - Tests use the real interfaces: nothing exists only for a test.
+- Interfaces under `op2/include/op2/rt` are not released: rename or remove
+  them outright, without compatibility shims.
 - Legacy code keeps its style (manual memory, `op_profile` enter/exit); new
   runtime code owns its state through RAII.
 - Small fixes stay at their site: no helper, macro or file just to share a

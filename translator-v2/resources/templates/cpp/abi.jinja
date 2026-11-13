@@ -1,0 +1,62 @@
+{#- How a translated C++ kernel takes its arguments, for the shared loop
+    hosts: indices from 0, every data argument an op::rt::kernel::Ptr (a scalar
+    global through its address), an inactive optional argument a null Ptr;
+    the loop entered as op_par_loop_<name>. -#}
+{%- set index_base = 0 -%}
+
+{%- macro idx_arg(name) -%}
+&{{name}}
+{%- endmacro -%}
+
+{%- macro value(expr) -%}
+op::rt::kernel::Ptr{&{{expr}}}
+{%- endmacro -%}
+
+{%- macro element(arg, expr) -%}
+{{expr}}
+{%- endmacro -%}
+
+{%- macro guarded(arg) -%}
+1
+{%- endmacro -%}
+
+{%- macro inactive(arg) -%}
+op::rt::kernel::Ptr<{{(lh.dat(arg) if arg is dat else arg).typ.c()}}>{nullptr}
+{%- endmacro -%}
+
+{%- macro wrapper_locals() -%}
+{%- endmacro -%}
+
+{#- The loop's constants as descriptor rows. -#}
+{%- macro register_consts() -%}
+{% for const in lh.consts %}
+    {% if const.dim == 1 %}
+    op::rt::abi::gpu::constant("op2_const_{{const.ptr}}_d", &{{const.ptr}},
+        &op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash),
+    {% else %}
+    op::rt::abi::gpu::constant("op2_const_{{const.ptr}}_d", {{const.ptr}},
+        sizeof(op2_const_{{const.ptr}}_d) / sizeof({{const.ptr}}[0]),
+        op2_const_{{const.ptr}}_d, &op2_const_{{const.ptr}}_hash),
+    {% endif %}
+{% endfor %}
+{%- endmacro -%}
+
+{%- macro entry() -%}
+void op_par_loop_{{lh.name}}(
+    const char *name,
+{%- endmacro -%}
+
+{%- macro entry_prologue() %}
+    (void)name;
+{%- endmacro -%}
+
+{%- macro master_extras() %}
+
+void op_decl_const_char(int, const char *, int, char *, const char *) {
+    // Unused with JIT
+}
+{% endmacro -%}
+
+{%- macro loop_include(loop_) -%}
+{{loop_.name}}_kernel.h
+{%- endmacro -%}

@@ -304,6 +304,11 @@ Parallel Loops
    - :c:data:`OP_RW`: Read and write.
    - :c:data:`OP_INC`: Increment or global reduction to compute a sum.
 
+   .. note::
+      A kernel may only increment an indirect :c:data:`OP_INC` argument: ``p[i] += e``, ``p[i] -= e``, ``++p[i]``, ``p[i]--`` or ``p[i] = p[i] + e`` (``*p`` for ``p[0]``), each a statement of its own, or pass it to a helper function that does the same. The C++ ``openmp`` target applies each increment through the loop's execution strategy and cannot translate any other use, such as an assignment or a read; declare such an argument :c:data:`OP_RW` or :c:data:`OP_WRITE` instead.
+
+      The C++ ``openmp`` target passes every data and global argument as an ``op::rt::kernel::Ptr``, which carries its stride (the layout, and for a reduction the thread's copy). A kernel may index one (``p[i]``), dereference it (``*p``) or pass it to a helper function, which may take a local array at another call; pointer arithmetic, taking an element's address, holding it in a local pointer, passing it to a library function or testing it against null cannot be translated.
+
    The **idx** parameter accepts both positive values to specify a single per-element map index, where the kernel is passed a single dimension array of data, or negative values to specify a range of mapping indicies leading to the kernel being passed a two-dimensional array of data. If a negative index is provided the first **-idx** mapping indicies are provided to the kernel.
 
    Consider the example of a kernel that is executed over a set of triangles, and is supplied the verticies via arguments. Using positive **idx** you would need one :c:type:`op_arg` per vertex, leading to a kernel declaration similar to:
@@ -570,8 +575,14 @@ The following environment variables can be set at run time to control OP2 behavi
      - Description
    * - ``OP_AUTO_SOA``
      - Any value.  For the translator, the same as ``--force_soa``: every dataset is translated as SoA.  At run time (or as an ``op_init`` argument), the GPU backends store every dataset of dimension above 1 as SoA, as ``op_init_soa`` does.
+   * - ``OP_STRATEGY``, ``OP_<STRATEGY>``, ``OP_CHUNK_*``
+     - Which execution strategy a loop runs and how: see :ref:`strategies`.
+   * - ``OP_AUTOTUNE``, ``OP_AUTOTUNE_*``
+     - Timing every strategy and running the fastest: see :ref:`strategies`.
    * - ``OP_GPU_DIRECT``
      - ``on`` or ``off``: hands device buffers to MPI, or stages them through host memory, overriding the detection at ``op_init`` (see :ref:`perf`).
+   * - ``OP_MPI_TEST_INTERVAL``
+     - Integer, default 1024: elements the OpenMP backend's calling thread runs of a loop's core between tests of the outstanding halo exchange (see :ref:`strategies`); 0 never tests.
    * - ``OP_HYBRID_BALANCE``
      - GPU-to-CPU partition size ratio for hybrid CPU/GPU runs (also an ``op_init`` argument).
    * - ``OP_WHITELIST``

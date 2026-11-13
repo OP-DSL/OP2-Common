@@ -35,6 +35,7 @@
  * of the OpenMP back-end
  */
 
+#include <op2/rt/lifecycle.h>
 #include <op2/env.h>
 #include <op_lib_c.h>
 #include <op_rt_support.h>
@@ -52,6 +53,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
+  op::rt::init_cpu();
   op::env::finish();
 }
 
@@ -63,6 +65,7 @@ void op_mpi_init(int argc, char **argv, int diags, int global, int local) {
   (void)global; // Mark as unused
   (void)local;  // Mark as unused
   op_init_core(argc, argv, diags);
+  op::rt::init_cpu();
   op::env::finish();
 }
 
@@ -179,6 +182,7 @@ void op_printf(const char *format, ...) {
 void op_print(const char *line) { printf("%s\n", line); }
 
 void op_exit() {
+  op::rt::finalise(0, 1);
   op_rt_exit();
   op_exit_core();
 }
