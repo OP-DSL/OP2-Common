@@ -17,9 +17,9 @@ dats are translated per target (`translator-v2/`) and run by the library
 - Configure with CMake (`OP2_ENABLE_*`; the tests need `OP2_ENABLE_TESTS`, the
   applications' `OP2_ENABLE_APP_TESTS`).  Build past a failing target
   (`-- -k` under Make): otherwise later test binaries stay stale.
-- `ctest -L <label>` or `-R <regex>`; labels unit, translator, functional
-  and apps, plus the language, serial or mpi, and strategy.  GPU tests need a
-  device.
+- `ctest -L <label>` or `-R <regex>`; labels unit, cuda, translator,
+  functional and apps, plus the language, serial or mpi, and strategy.  GPU
+  tests need a device.
 - Check each change by what it can break: the affected targets build without
   warnings, and the tests or runs that reach the change pass.  Full validation
   only at checkpoints and before a merge.

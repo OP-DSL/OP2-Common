@@ -1,8 +1,8 @@
-! A loop the c_cuda target warns about and runs through its seq fallback:
+! A loop the cuda_f2c target warns about and runs through its seq fallback:
 ! an OP_INC argument assigned rather than incremented; with INFO_DIM, also an
 ! info argument narrower than its maximum, which the translator rejects, and
 ! with VECTOR_MAP a vector map argument, which it rejects too; with IMPLIED_SAVE
-! an initialised local, which c_cuda leaves to seq; with SLICE slices of a
+! an initialised local, which cuda_f2c leaves to seq; with SLICE slices of a
 ! dim-4 argument, which only the legacy targets leave to seq; with
 ! CONFLICTING_DAT one dat passed as two types, which it rejects.
 program rejects

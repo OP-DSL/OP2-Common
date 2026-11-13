@@ -183,11 +183,13 @@ Set it at configure time:
 ^^^^^^^
 
 With ``-DOP2_ENABLE_TESTS=ON``, CTest runs the unit tests under ``tests/unit``
-(label ``unit``) and the functional tests under ``tests/functional``: each
-directory's program built for every variant of the families it asks for
-(serial, MPI, and SoA on the GPU variants).  ``<test>_<strategy>`` runs the
-C++ ``openmp`` variant with each strategy forced, and ``<test>_autotune``
-explores every strategy (label ``strategy``):
+(label ``unit``), the GPU runtime tests under ``tests/cuda`` (``cuda``), and the
+functional tests under ``tests/functional``: each directory's program built for
+every variant of the families it asks for (serial, MPI, and SoA on the GPU
+variants).  A JIT variant's test runs the offline kernels; ``<test>_jit``, or
+``<test>_<strategy>`` with each strategy forced, runs every kernel JIT-compiled
+on its first call, and ``<test>_autotune`` explores every strategy (label
+``strategy``):
 
 .. code-block:: shell
 
@@ -282,8 +284,8 @@ configure to disable.
      - Skip building the example apps under ``apps/``.
    * - ``OP2_ENABLE_TESTS``
      - ``OFF``
-     - Skip the tests under ``tests/`` (unit, translator and functional) and
-       their ``ctest`` registration.
+     - Skip the tests under ``tests/`` (unit, CUDA, translator and
+       functional) and their ``ctest`` registration.
    * - ``OP2_ENABLE_APP_TESTS``
      - ``OFF``
      - Also run the example apps (needs ``OP2_ENABLE_APPS``) to their own

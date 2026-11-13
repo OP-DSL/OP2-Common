@@ -34,7 +34,7 @@
 // This file implements the OP2 user-level functions for the CUDA backend
 //
 
-#include <op_gpu_shims.h>
+#include <op2/gpu/shims.h>
 #include <op_cuda_rt_support.h>
 #include <op2/rt/lifecycle.h>
 #include <op2/env.h>
@@ -57,12 +57,14 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 void op_init(int argc, char **argv, int diags) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::rt::init_gpu();
   op::env::finish();
 }
 
 void op_mpi_init(int argc, char **argv, int diags, int, int) {
   op_init_core(argc, argv, diags);
   cutilDeviceInit(argc, argv);
+  op::rt::init_gpu();
   op::env::finish();
 }
 

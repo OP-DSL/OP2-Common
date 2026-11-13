@@ -23,17 +23,29 @@
 #                                  # for dependencies of the test source itself
 #                                  # (OP2 links only what OP2 needs)
 #     [STRATEGIES <s...>]          # also run each strategy-capable variant
-#                                  # (C++ openmp) once per strategy, forced,
+#                                  # (cuda/hip and their _f2c, C++ openmp,
+#                                  # openmp_f2c) once per strategy, forced,
 #                                  # as <target>_<strategy>, and once
 #                                  # exploring them all, as <target>_autotune
 # )
 #
-# Strategies run on the mpi family when there is one (the same kernels, with
-# halo sections) and on soa; the autotuner on the first of those.
+# A JIT variant's <target> test runs its offline kernels.  Its loops' JIT
+# kernels run under a forced strategy in <target>_<strategy>, each asked for
+# from the first call and built by it, or, in a directory with no
+# STRATEGIES, in <target>_jit, built on threads as a run builds them by
+# default, a call waiting for its floor's kernel.  Strategies run on the mpi
+# family when there is one (the same kernels, with halo sections) and on
+# soa; the autotuner on the first of those.
 # ---------------------------------------------------------------------------
 set(_OP2_TEST_MPI_RANKS_LOWCOST 8)
 set(_OP2_TEST_MPI_RANKS_GPU 4)
 set(_OP2_TEST_OMP_NUM_THREADS 6)
+
+# Every kernel specialised, asked for from its first call: built by the
+# call, or on a thread (the default, which CI environments may override).
+set(_OP2_TEST_JIT_ENV OP_JIT_LEVEL=2 OP_JIT_FORCE=1 OP_JIT_MIN_CALLS=1)
+set(_OP2_TEST_JIT_SEQ_ENV ${_OP2_TEST_JIT_ENV} OP_JIT_SEQ_COMPILE=1)
+set(_OP2_TEST_JIT_THREAD_ENV ${_OP2_TEST_JIT_ENV} OP_JIT_SEQ_COMPILE=0)
 
 # A test of the variant in the caller's _cmd, _labels and _nproc, with the
 # environment given after its name.
@@ -130,7 +142,7 @@ function(op2_add_functional_tests)
     if("soa" IN_LIST _A_FAMILIES)
         op2_add_app_variants(
             NAME "${_A_NAME}_soa" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-            VARIANTS cuda* hip* c_cuda* c_hip* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+            VARIANTS cuda* hip* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
             TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} --force_soa
             SUMMARY_BUCKET TESTS
             TARGETS_VAR _fam_targets)
@@ -140,7 +152,7 @@ function(op2_add_functional_tests)
     if("soa_mpi" IN_LIST _A_FAMILIES)
         op2_add_app_variants(
             NAME "${_A_NAME}_soa_par" LANGUAGE "${_A_LANGUAGE}" SOURCES ${_A_SOURCES}
-            VARIANTS mpi_cuda* mpi_hip* mpi_c_cuda* mpi_c_hip* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
+            VARIANTS mpi_cuda* mpi_hip* EXCLUDE_VARIANTS ${_A_EXCLUDE_VARIANTS}
             COMPILE_DEFINITIONS USE_MPI
             TRANSLATOR_ONLY_ARGS ${_A_TRANSLATOR_ARGS} --force_soa
             SUMMARY_BUCKET TESTS
@@ -181,7 +193,7 @@ function(op2_add_functional_tests)
         # makes empty ones vanish rather than becoming stray "" args.
         if(_v MATCHES "^mpi_(.*)")
             set(_base "${CMAKE_MATCH_1}")
-            if(_base MATCHES "^(cuda|c_cuda|hip|c_hip)$")
+            if(_base MATCHES "^(cuda|hip)(_legacy|_f2c)?$")
                 set(_nproc ${_OP2_TEST_MPI_RANKS_GPU})
             else()
                 set(_nproc ${_OP2_TEST_MPI_RANKS_LOWCOST})
@@ -202,24 +214,40 @@ function(op2_add_functional_tests)
         endif()
 
         set(_base_env "")
-        if(_v MATCHES "^(mpi_)?openmp(_legacy)?$")
+        if(_v MATCHES "^(mpi_)?openmp(_f2c|_legacy)?$")
             set(_base_env "OMP_NUM_THREADS=${_OP2_TEST_OMP_NUM_THREADS}")
         endif()
-        # The OpenMP variant on op::rt::cpu: C++'s openmp.
+        # The OpenMP variants on op::rt::cpu: C++'s openmp and openmp_f2c.
         set(_cpu OFF)
-        if(_A_LANGUAGE STREQUAL "cpp" AND _v MATCHES "^(mpi_)?openmp$")
+        if(_v MATCHES "^(mpi_)?openmp_f2c$" OR
+                (_A_LANGUAGE STREQUAL "cpp" AND _v MATCHES "^(mpi_)?openmp$"))
             set(_cpu ON)
         endif()
+        set(_jit OFF)
+        if(_v MATCHES "^(mpi_)?(cuda|hip)(_f2c)?$")
+            set(_jit ON)
+        endif()
 
-        _op2_variant_test(${_tgt} ${_base_env})
+        if(_jit)
+            _op2_variant_test(${_tgt} OP_JIT_LEVEL=0 ${_base_env})
+            if(NOT _A_STRATEGIES)
+                _op2_variant_test(${_tgt}_jit ${_OP2_TEST_JIT_THREAD_ENV} ${_base_env})
+            endif()
+        else()
+            _op2_variant_test(${_tgt} ${_base_env})
+        endif()
 
-        if(NOT _A_STRATEGIES OR NOT _cpu)
+        if(NOT _A_STRATEGIES OR NOT (_jit OR _cpu))
             continue()
         endif()
 
         if(_family STREQUAL _strategy_family OR _family STREQUAL "soa")
             foreach(_strategy IN LISTS _A_STRATEGIES)
-                _op2_variant_test(${_tgt}_${_strategy} OP_STRATEGY=${_strategy} ${_base_env})
+                set(_env OP_STRATEGY=${_strategy} ${_base_env})
+                if(_jit)
+                    list(APPEND _env ${_OP2_TEST_JIT_SEQ_ENV})
+                endif()
+                _op2_variant_test(${_tgt}_${_strategy} ${_env})
                 # A loop that passes over its forced strategy has not
                 # tested it.
                 set_tests_properties(${_tgt}_${_strategy} PROPERTIES
@@ -229,7 +257,7 @@ function(op2_add_functional_tests)
         endif()
 
         if(_family STREQUAL _autotune_family)
-            _op2_variant_test(${_tgt}_autotune OP_AUTOTUNE=report ${_base_env})
+            _op2_variant_test(${_tgt}_autotune OP_AUTOTUNE=report OP_JIT_LEVEL=2 ${_base_env})
             set_tests_properties(${_tgt}_autotune PROPERTIES LABELS "${_labels};strategy")
         endif()
     endforeach()

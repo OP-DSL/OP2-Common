@@ -1,8 +1,13 @@
-// A loop the translator refuses, the case chosen by -D: an info argument that
-// doesn't match its maximum, one dat passed as two types, a map index a legacy
-// target needs as a constant, a non-constant const dim, a recursive helper, a
-// function template or a helper in a namespace, an include that isn't there,
-// or an info argument, which the legacy GPU targets don't support.
+// A loop the cuda target refuses to translate, the case chosen by -D: each
+// misuses a kernel argument, which the target passes as an op::rt::kernel::Ptr
+// (an OP_INC one only to increment, an OP_READ one to const), an info
+// argument that doesn't match its maximum, one dat passed as two types, a map
+// index a legacy target needs as a constant, a non-constant const dim, a
+// recursive helper, a function template or a helper in a namespace, an include
+// that isn't there, or an info argument, which the legacy GPU targets don't
+// support.
+
+#include <cstring>
 
 #if defined(MISSING_INCLUDE)
 #include <op2_no_such_header.h>
@@ -23,7 +28,24 @@ inline double half(double x) { return 0.5 * x; }
 #endif
 
 void kernel(const double *q, double *r, double *p) {
-#if defined(RECURSION)
+#if defined(POINTER_ARITHMETIC)
+    take(q + 1, r);
+#elif defined(ELEMENT_ADDRESS)
+    const double *e = &q[1];
+    r[0] = e[0];
+#elif defined(LOCAL_ALIAS)
+    const double *a = q;
+    r[0] = a[0];
+#elif defined(LIBRARY_CALL)
+    std::memcpy(r, q, sizeof(double));
+#elif defined(NULL_TEST)
+    if (q)
+        r[0] = q[0];
+#elif defined(INC_ASSIGNED)
+    p[0] = q[0];
+#elif defined(INC_READ)
+    r[0] = p[0];
+#elif defined(RECURSION)
     r[0] = fact(q[0]);
 #elif defined(TEMPLATE_CALL)
     r[0] = twice(q[0]);
@@ -31,6 +53,10 @@ void kernel(const double *q, double *r, double *p) {
     r[0] = helpers::half(q[0]);
 #endif
 }
+
+#if defined(READ_NOT_CONST)
+void copy(double *q, double *r) { r[0] = q[0]; }
+#endif
 
 #if defined(INFO_DIM) || defined(INFO_REF) || defined(LEGACY_INFO)
 void extreme(const double *q, double *max, int *loc) {
@@ -56,7 +82,11 @@ int main(int argc, char **argv) {
                 op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
                 op_arg_dat(r_dat, -1, OP_ID, 1, "double", OP_WRITE),
                 op_arg_dat(p_dat, 0, map, 1, "double", OP_INC));
-#if defined(CONFLICTING_DAT)
+#if defined(READ_NOT_CONST)
+    op_par_loop(copy, "copy", edges,
+                op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
+                op_arg_dat(r_dat, -1, OP_ID, 1, "double", OP_WRITE));
+#elif defined(CONFLICTING_DAT)
     op_par_loop(kernel, "kernel", edges,
                 op_arg_dat(q_dat, -1, OP_ID, 2, "double", OP_READ),
                 op_arg_dat(q_dat, -1, OP_ID, 1, "float", OP_WRITE),
