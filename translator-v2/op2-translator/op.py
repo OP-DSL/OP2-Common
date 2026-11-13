@@ -137,9 +137,14 @@ class Dat:
     typ: Type
     soa: bool
 
+    # A matrix's storage (op_arg_mat), which loops reach through its regions
+    # and layout (op2/rt/abi/matrix.h) rather than as one array.
+    mat: bool = False
+
     def __str__(self) -> str:
         return (
-            f"Dat(id={self.id}, ptr='{self.ptr}', arg_id={self.arg_id}, dim={self.dim}, typ={self.typ}, soa={self.soa})"
+            f"Dat(id={self.id}, ptr='{self.ptr}', arg_id={self.arg_id}, dim={self.dim}, typ={self.typ}, soa={self.soa}, "
+            f"mat={self.mat})"
         )
 
 
@@ -159,10 +164,16 @@ class ArgDat(Arg):
     map_id: Optional[int]
     map_idx: Optional[int]
 
+    # A matrix block of dim x dim (op_arg_mat), and whether it may be a
+    # diagonal one, the same element on both sides.
+    mat_dim: Optional[int] = None
+    mat_diag: bool = False
+
     def __str__(self) -> str:
         return (
             f"ArgDat(id={self.id}, loc={self.loc}, access_type={str(self.access_type) + ',':17} opt={self.opt}, "
-            f"dat_id={self.dat_id}, map_id={self.map_id}, map_idx={self.map_idx})"
+            f"dat_id={self.dat_id}, map_id={self.map_id}, map_idx={self.map_idx}, mat_dim={self.mat_dim}, "
+            f"mat_diag={self.mat_diag})"
         )
 
 
@@ -257,6 +268,8 @@ class Loop:
         map_idx: Optional[int],
         access_type: AccessType,
         opt: bool = False,
+        mat_dim: Optional[int] = None,
+        mat_diag: bool = False,
     ) -> None:
         arg_id = len(self.args)
 
@@ -264,7 +277,7 @@ class Loop:
         if dat_id is None:
             dat_id = len(self.dats)
 
-            dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa)
+            dat = Dat(dat_id, dat_ptr, arg_id, dat_dim, dat_typ, dat_soa, mat_dim is not None)
             self.dats.append(dat)
         else:
             dat = self.dats[dat_id]
@@ -292,7 +305,7 @@ class Loop:
                 map_ = Map(map_id, map_ptr, arg_id)
                 self.maps.append(map_)
 
-        arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_idx)
+        arg = ArgDat(arg_id, loc, access_type, opt, dat_id, map_id, map_idx, mat_dim, mat_diag)
         self.args.append(arg)
 
         if map_ptr is None or map_idx is None or map_idx >= 0:

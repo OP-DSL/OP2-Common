@@ -59,6 +59,27 @@ arg{{arg.id}}_idx
 map{{arg.map_id}}[{{map_idx(arg)}} * stride + n]
 {%- endmacro %}
 
+{#- A matrix block argument as an op::rt::kernel::BlockPtr: its slot's block in
+    the matrix's regions, through its layout, or contiguous at data. -#}
+{%- macro block_params(arg, diagonal = none) -%}
+    {%- set diagonal = arg.mat_diag if diagonal is none else diagonal -%}
+{{"const " if lh.dat(arg) is read_in(lh)}}{{lh.dat(arg).typ.c()}}, {{arg.mat_dim}}{{", true" if diagonal}}
+{%- endmacro -%}
+
+{%- macro block_type(arg, diagonal = none) -%}
+op::rt::kernel::BlockPtr<{{block_params(arg, diagonal)}}>
+{%- endmacro -%}
+
+{#- A staged slot's target may be any block, so a diagonal one too. -#}
+{%- macro block_at(arg, slot, diagonal = none) -%}
+    {%- set d = "dat%d" % arg.dat_id -%}
+op::rt::kernel::mat_block<{{block_params(arg, diagonal)}}>({{d}}, {{d}}_r1, {{d}}_r2, {{d}}_layout, {{d}}_form, {{slot}})
+{%- endmacro -%}
+
+{%- macro block_in(arg, data) -%}
+{{block_type(arg)}}{ {{-data-}} }
+{%- endmacro -%}
+
 {#- An argument as the kernel sees it: an index, or its element, an inactive
     optional's placeholder when guarded. -#}
 {%- macro arg_value(arg, jit = false, staged = none, local = false) %}
@@ -111,17 +132,21 @@ op::rt::kernel::Ptr{gbl{{arg.id}}}
 {%- macro stage_slot(arg, strategy) -%}
     {%- set group = groups[strategy].group(arg) -%}
     {%- set word = "stage_words[%d * stride + n]" % groups[strategy].position(arg) -%}
+    {%- set slot = "op2_stage%d + %s * %s" % (group, word, dat_dim(lh.dat(arg))) -%}
+    {%- set staged = block_in(arg, slot) if arg is mat else "op::rt::kernel::Ptr{%s}" % slot -%}
     {%- if strategy == "chunk_atomics" -%}
-((op2_unstaged_singles && {{word}} == op::rt::abi::unstaged_word) ? {{arg_global_pointer(arg)}} : op::rt::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}})
+((op2_unstaged_singles && {{word}} == op::rt::abi::unstaged_word) ? {{arg_global_pointer(arg)}} : {{staged}})
     {%- else -%}
-op::rt::kernel::Ptr{op2_stage{{group}} + {{word}} * {{dat_dim(lh.dat(arg))}}}
+{{staged}}
     {%- endif -%}
 {%- endmacro -%}
 
 {#- staged names the strategy whose group arguments point at their staged
     slots; local points the indirect increments at per-thread registers. -#}
 {%- macro dat_ptr(arg, staged = none, local = false) -%}
-    {%- if local and arg in groups.chunk_atomics.args -%}
+    {%- if local and arg in groups.chunk_atomics.args and arg is mat -%}
+{{block_in(arg, "op2_l.op2_local%d" % arg.id)}}
+    {%- elif local and arg in groups.chunk_atomics.args -%}
 op::rt::kernel::Ptr{op2_l.op2_local{{arg.id}}}
     {%- elif staged is not none and arg in groups[staged].args -%}
 {{stage_slot(arg, staged)}}
@@ -133,7 +158,9 @@ op::rt::kernel::Ptr{op2_l.op2_local{{arg.id}}}
 {#- An argument's global data for element n, as an op::rt::kernel::Ptr, whose
     stride carries the layout. -#}
 {%- macro arg_global_pointer(arg) -%}
-    {%- if arg is direct and lh.dat(arg) is soa -%}
+    {%- if arg is mat -%}
+{{block_at(arg, map_lookup(arg))}}
+    {%- elif arg is direct and lh.dat(arg) is soa -%}
 op::rt::kernel::Ptr{dat{{arg.dat_id}} + n, op2_stride_direct_d}
     {%- elif arg is direct -%}
 op::rt::kernel::Ptr{dat{{arg.dat_id}} + n * {{dat_dim(lh.dat(arg))}}}
@@ -179,6 +206,9 @@ constexpr op::rt::kernel::gpu::RuntimeParam op2_stride_gbl_d{};
 {% for dat in lh.dats if dat.dim is none %}
 int op2_dim_dat{{dat.id}};
 {% endfor %}
+{% for dat in lh.dats if dat.mat %}
+int op2_form_dat{{dat.id}};
+{% endfor %}
 
 {% for arg in lh.args|gbl|read|scalar %}
 {{arg.typ.c()}} op2_gbl{{arg.id}};
@@ -204,7 +234,9 @@ true
 {#- A slot's global target as an op::rt::kernel::Ptr; its stride carries the layout, so
     the staging helpers need no AoS/SoA variants. -#}
 {%- macro stage_global(arg, dat) -%}
-    {%- if dat is soa -%}
+    {%- if arg is mat -%}
+{{block_at(arg, "target", true)}}
+    {%- elif dat is soa -%}
 op::rt::kernel::Ptr{dat{{arg.dat_id}} + target, op2_stride_dat{{arg.dat_id}}_d}
     {%- else -%}
 op::rt::kernel::Ptr{dat{{arg.dat_id}} + target * {{dat_dim(dat)}}}
@@ -324,12 +356,18 @@ __launch_bounds__(op::rt::abi::gpu::default_block_size)
 {#- The JIT wrapper takes the offline wrapper's parameters, so both launch
     from one argument list.  Those the JIT kernel may have as constants come
     last: a scalar global, read through op::rt::kernel::gpu::param_value as its baked value
-    or the argument, and a dimension, unnamed there. -#}
+    or the argument, and a dimension or a matrix's form, unnamed there. -#}
 {% macro kernel_wrapper(strategy, jit = false) %}
 {% set record = "CHUNK" if strategy in chunk_strategies else "RANGE" %}
 {% set p = namespace(items=[]) %}
 {% for dat in lh.dats %}
-    {% set p.items = p.items + ["%s%s *__restrict dat%s" % ("const " if dat is read_in(lh) else "", dat.typ.c(), dat.id)] %}
+    {% set cv = "const " if dat is read_in(lh) else "" %}
+    {% set p.items = p.items + ["%s%s *__restrict dat%s" % (cv, dat.typ.c(), dat.id)] %}
+    {% if dat.mat %}
+        {% set p.items = p.items + ["%s%s *__restrict dat%s_r1" % (cv, dat.typ.c(), dat.id),
+                                    "%s%s *__restrict dat%s_r2" % (cv, dat.typ.c(), dat.id),
+                                    "const int *__restrict dat%s_layout" % dat.id] %}
+    {% endif %}
 {% endfor %}
 {% for map in lh.maps %}
     {% set p.items = p.items + ["const int *__restrict map%s" % map.id] %}
@@ -348,6 +386,9 @@ __launch_bounds__(op::rt::abi::gpu::default_block_size)
 {% endfor %}
 {% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
     {% set p.items = p.items + ["const int " ~ (("/*dat%s_dim*/" if jit else "dat%s_dim") % dat.id)] %}
+{% endfor %}
+{% for dat in lh.dats if dat.mat %}
+    {% set p.items = p.items + ["const int " ~ (("/*dat%s_form*/" if jit else "dat%s_form") % dat.id)] %}
 {% endfor %}
 {% for arg in gbls_by_value %}
     {% set p.items = p.items + ["const op::rt::kernel::gpu::Array<%s, %s> gbl%s" % (arg.typ.c(), arg.dim, arg.id)] %}
@@ -368,6 +409,9 @@ void op2_k_{{lh.name}}{{variant}}_{{strategy}}_wrapper(
     {% if jit %}
         {% for dat in lh.dats if dat.dim is none %}
     [[maybe_unused]] constexpr int dat{{dat.id}}_dim = op2_dim_dat{{dat.id}}_d;
+        {% endfor %}
+        {% for dat in lh.dats if dat.mat %}
+    [[maybe_unused]] constexpr int dat{{dat.id}}_form = op2_form_dat{{dat.id}}_d;
         {% endfor %}
     {% endif %}
     {% if strategy in chunk_strategies %}
@@ -408,7 +452,14 @@ const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
     no data, so its by-value argument is read from the JIT's copy. -#}
 {% set bound = namespace(items=[]) %}
 {% for dat in lh.dats %}
-    {% set bound.items = bound.items + ["(void *)&args[%s].data_d" % dat.arg_id] %}
+    {% if dat.mat %}
+        {% set bound.items = bound.items + ["(void *)&args[%s].mat->region_d[0]" % dat.arg_id,
+                                            "(void *)&args[%s].mat->region_d[1]" % dat.arg_id,
+                                            "(void *)&args[%s].mat->region_d[2]" % dat.arg_id,
+                                            "(void *)&args[%s].mat->layout_d" % dat.arg_id] %}
+    {% else %}
+        {% set bound.items = bound.items + ["(void *)&args[%s].data_d" % dat.arg_id] %}
+    {% endif %}
 {% endfor %}
 {% for map in lh.maps %}
     {% set bound.items = bound.items + ["(void *)&args[%s].map_data_d" % map.arg_id] %}
@@ -431,6 +482,9 @@ const char op2_k_{{lh.name}}{{variant}}_{{strategy}}_src[] = R"_op2_k(
 {% endfor %}
 {% for dat in lh.dats|selectattr("dim", "none")|reject("soa") %}
     {% set bound.items = bound.items + ["(void *)&args[%s].dim" % dat.arg_id] %}
+{% endfor %}
+{% for dat in lh.dats if dat.mat %}
+    {% set bound.items = bound.items + ["(void *)&args[%s].mat->form" % dat.arg_id] %}
 {% endfor %}
 {% for arg in gbls_by_value %}
     {% set bound.items = bound.items + ["(void *)args[%s].data" % arg.id] %}
@@ -476,6 +530,9 @@ static int op2_k_{{lh.name}}{{variant}}_bind(op_arg *args, unsigned& opt_flags,
 {{abi.register_consts()}}
 {% for dat in lh.dats if dat.dim is none %}
     op::rt::abi::gpu::dat_dim("op2_dim_dat{{dat.id}}_d", &{{m}}::op2_dim_dat{{dat.id}}, {{dat.arg_id}}),
+{% endfor %}
+{% for dat in lh.dats if dat.mat %}
+    op::rt::abi::gpu::mat_form("op2_form_dat{{dat.id}}_d", &{{m}}::op2_form_dat{{dat.id}}, {{dat.arg_id}}),
 {% endfor %}
 {% for arg in lh.args|gbl|read|scalar %}
     op::rt::abi::gpu::scalar_global("op2_gbl{{arg.id}}_d", &{{m}}::op2_gbl{{arg.id}}, {{arg.id}}),

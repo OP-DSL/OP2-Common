@@ -2,7 +2,9 @@
 # The loop runtime's layers, by what includes what:
 #  - the core includes from the loop runtime (op2/rt) only op2/rt/lifecycle.h,
 #    through which op_init, op_exit and op_profile_output start, release and
-#    report on it; the Fortran bindings sit over both and are exempt;
+#    report on it; the Fortran bindings sit over both and are exempt, and the
+#    solver layer (op2/solve) holds the library side of a matrix's storage,
+#    so it includes that contract, op2/rt/abi/matrix.h;
 #  - op2/rt/abi, the contract between the library and op2_kernels, includes
 #    nothing else of op2/rt;
 #  - op2/rt/kernel is compiled into op2_kernels alone, never into a library,
@@ -38,6 +40,7 @@ report() {
 report "core sources include the loop runtime beyond op2/rt/lifecycle.h" \
     "$(grep -rnE "${sources[@]}" "$include" op2/include op2/src |
         grep -vE '^op2/(include/op2/rt|src/rt|src/fortran)/' |
+        grep -vE '^op2/(include/op2|src)/solve/[^:]*:[0-9]+:[^:]*[<"]op2/rt/abi/matrix\.h[>"]' |
         grep -vE '[<"]op2/rt/lifecycle\.h[>"]' || true)"
 
 report "op2/rt/abi includes the loop runtime beyond op2/rt/abi" \

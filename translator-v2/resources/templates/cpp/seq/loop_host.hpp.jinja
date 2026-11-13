@@ -38,6 +38,15 @@ map{{arg.map_id}}[{{map_idx(arg)}}]
     {%- endif -%}
 {%- endmacro -%}
 
+{#- A matrix block argument as an op::rt::kernel::BlockPtr: its slot's block in
+    the matrix's regions, through its layout. -#}
+{%- macro block_at(arg) -%}
+    {%- set cv = "const " if lh.dat(arg) is read_in(lh) else "" -%}
+    {%- set typ = lh.dat(arg).typ.c() -%}
+    {%- set m = "arg%d.mat" % arg.id -%}
+op::rt::kernel::mat_block<{{cv}}{{typ}}, {{arg.mat_dim}}{{", true" if arg.mat_diag}}>(({{typ}} *){{m}}->region[0], ({{typ}} *){{m}}->region[1], ({{typ}} *){{m}}->region[2], {{m}}->layout, {{m}}->form, {{map_lookup(arg)}})
+{%- endmacro -%}
+
 {%- macro arg_to_pointer2(arg) %}
     {%- if arg is gbl or arg is info %}
         {%- set cast = arg.typ.c() -%}
@@ -56,7 +65,9 @@ map{{arg.map_id}}[{{map_idx(arg)}}]
         {%- set offset = "%s * %s" % (offset, arg_dim(arg)) %}
     {%- endif -%}
 
-    {%- if lh is indirect and arg is gbl and arg is not read %}
+    {%- if arg is mat %}
+{{block_at(arg)}}
+    {%- elif lh is indirect and arg is gbl and arg is not read %}
 gbl{{arg.id}}_temp
     {%- elif lh is indirect and arg is info %}
 info{{arg.id}}_temp
@@ -67,6 +78,9 @@ info{{arg.id}}_temp
 
 #include <op_lib_cpp.h>
 #include <op_profile.h>
+{% if lh.args|select("mat")|list %}
+#include <op2/rt/kernel/prelude.h>
+{% endif %}
 
 #include <cstdint>
 #include <cmath>

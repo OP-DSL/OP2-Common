@@ -57,6 +57,7 @@ enum class ParamSource {
     array_arg,      // a READ global argument of any dimension, read in place
     dat_stride,     // a dat's SoA stride
     dat_dim,        // a dat's run-time dimension
+    mat_form,       // the form a matrix argument's blocks are found by
     strategy,       // a strategy's value on its family's axis of the row's key
     global_stride,  // the stride between the copies of the globals a launch keeps
 };
@@ -135,6 +136,14 @@ constexpr Param dat_stride(const char *name, int *data, int arg) {
 constexpr Param dat_dim(const char *name, int *data, int arg) {
     return {.name = name, .type = ElementType::i32, .elem_size = sizeof(int),
             .source = ParamSource::dat_dim, .data = data, .elems = 1, .array = false,
+            .index = arg, .runtime = false};
+}
+
+// The form a matrix argument's blocks are found by (op2/rt/abi/matrix.h),
+// which a specialised kernel always bakes in.
+constexpr Param mat_form(const char *name, int *data, int arg) {
+    return {.name = name, .type = ElementType::i32, .elem_size = sizeof(int),
+            .source = ParamSource::mat_form, .data = data, .elems = 1, .array = false,
             .index = arg, .runtime = false};
 }
 

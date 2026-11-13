@@ -19,19 +19,19 @@ namespace op::rt::plan {
 
 // --- References -----------------------------------------------------------------
 
-// A dat whose targets the planner follows, with what bounds them and how a
-// staged region of them is laid out; dat is null while no argument of the
-// group is active.
+// A dat or matrix whose targets the planner follows (loop::target), with
+// what bounds them and how a staged region of them is laid out; dat is null
+// while no argument of the group is active.
 struct Group {
-    op_dat dat = nullptr;
+    const void *dat = nullptr;
     int extent = 0;
     int dimension = 0;
     std::size_t scalar_size = 0;
 
-    // The group of the dat arg reaches.
+    // The group of the target arg reaches.
     static Group of(const op_arg& arg) {
-        op_set set = arg.dat->set;
-        return {arg.dat, set->size + set->exec_size + set->nonexec_size, arg.dim,
+        op_set set = loop::target_set(arg);
+        return {loop::target(arg), set->size + set->exec_size + set->nonexec_size, arg.dim,
                 static_cast<std::size_t>(arg.size / arg.dim)};
     }
 };

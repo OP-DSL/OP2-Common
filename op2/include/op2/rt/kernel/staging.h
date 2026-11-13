@@ -53,25 +53,26 @@ OP_KERNEL_DEVICE inline void stage_clear(T *region, IndexType elements, IndexTyp
         region[i] = 0;
 }
 
-// Seed a slot from its target's current value.
-template<typename T, typename Source>
-OP_KERNEL_DEVICE inline void stage_seed(Ptr<Source> target, T *region, IndexType slot,
+// Seed a slot from its target's current value.  A target is a Ptr, or a
+// matrix's BlockPtr: anything indexed by component.
+template<typename T, typename Target>
+OP_KERNEL_DEVICE inline void stage_seed(Target target, T *region, IndexType slot,
                                         IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
         region[slot * dim + c] = target[c];
 }
 
 // Add one element's per-thread increments into its staged slot.
-template<typename T>
-OP_KERNEL_DEVICE inline void stage_add(Ptr<T> slot, const T *increment, IndexType dim) {
+template<typename T, typename Slot>
+OP_KERNEL_DEVICE inline void stage_add(Slot slot, const T *increment, IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
         slot[c] += increment[c];
 }
 
 // Store a slot back to its target, which no other chunk running alongside
 // this one reaches.
-template<typename T>
-OP_KERNEL_DEVICE inline void stage_store(Ptr<T> target, const T *region, IndexType slot,
+template<typename T, typename Target>
+OP_KERNEL_DEVICE inline void stage_store(Target target, const T *region, IndexType slot,
                                          IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
         target[c] = region[slot * dim + c];
@@ -79,8 +80,8 @@ OP_KERNEL_DEVICE inline void stage_store(Ptr<T> target, const T *region, IndexTy
 
 // Add a slot's accumulated increments into its target, which other chunks
 // of the section may be adding to as well.
-template<typename T>
-OP_KERNEL_DEVICE inline void stage_flush(Ptr<T> target, const T *region, IndexType slot,
+template<typename T, typename Target>
+OP_KERNEL_DEVICE inline void stage_flush(Target target, const T *region, IndexType slot,
                                          IndexType dim) {
     for (IndexType c = 0; c < dim; ++c)
         atomic_inc(target[c], region[slot * dim + c]);

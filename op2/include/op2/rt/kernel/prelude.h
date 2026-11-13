@@ -25,6 +25,8 @@ using int64_t = long long; // NVRTC and hipRTC have no <cstdint>
 #include <cstdint>
 #endif
 
+#include <op2/rt/abi/matrix.h>
+
 namespace op::rt::kernel {
 
 OP_KERNEL_DEVICE inline void trap() {
@@ -75,6 +77,70 @@ struct Ptr {
     OP_KERNEL_DEVICE constexpr T& operator[](IndexType i) const { return data[i * stride]; }
     OP_KERNEL_DEVICE constexpr T& operator*() const { return data[0]; }
 };
+
+// A matrix argument's D x D block, indexed r * D + c, where its matrix keeps
+// it (op2/rt/abi/matrix.h): entry (r, c) at r * rs + c * cs from data.  A
+// Diagonal one may be a diagonal block whose diagonal entries its matrix's
+// rule moves; only those pay for the rule.
+template<typename T, int D, bool Diagonal = false>
+struct BlockPtr {
+    T* data;
+    IndexType rs = D;
+    IndexType cs = 1;
+    IndexType rule = abi::mat::plain;
+    T* diagonal = nullptr;
+
+    OP_KERNEL_DEVICE constexpr BlockPtr(T* data) : data{data} {}
+    OP_KERNEL_DEVICE constexpr BlockPtr(T* data, IndexType rs, IndexType cs)
+        : data{data}, rs{rs}, cs{cs} {}
+
+    // A BlockPtr to const from one to the same type.
+    template<typename U>
+        requires(is_same_type<const U, T>::value && !is_const_type<U>::value)
+    OP_KERNEL_DEVICE constexpr BlockPtr(const BlockPtr<U, D, Diagonal>& other)
+        : data{other.data}, rs{other.rs}, cs{other.cs}, rule{other.rule},
+          diagonal{other.diagonal} {}
+
+    // Through the row's pointer, so a row-major block's entries are constant
+    // offsets from it.
+    OP_KERNEL_DEVICE constexpr T& operator[](IndexType i) const {
+        const IndexType r = i / D, c = i % D;
+        if (Diagonal && rule == abi::mat::diagonal_first)
+            return (data + r * rs)[(c == r ? 0 : c + (c < r)) * cs];
+        if (Diagonal && rule == abi::mat::diagonal_separate)
+            return r == c ? diagonal[r] : (data + r * rs)[c - (c > r)];
+        return (data + r * rs)[c * cs];
+    }
+    OP_KERNEL_DEVICE constexpr T& operator*() const { return (*this)[0]; }
+};
+
+// The block of a matrix argument's slot, from its regions and layout by
+// their form (op2/rt/abi/matrix.h), which a specialised kernel bakes in.
+template<typename T, int D, bool Diagonal = false>
+OP_KERNEL_DEVICE constexpr BlockPtr<T, D, Diagonal> mat_block(T* r0, T* r1, T* r2,
+                                                               const int* layout, int form,
+                                                               IndexType slot) {
+    const int where = form & abi::mat::where_mask;
+    if (where == abi::mat::contiguous)
+        return {r0 + slot * (D * D)};
+    const int* e = layout + abi::mat::entry * slot;
+    const int aux = e[abi::mat::aux];
+    const int region = where == abi::mat::one_region ? 0 : aux & abi::mat::region_mask;
+    T* base = region == 0 ? r0 : region == 1 ? r1 : r2;
+    const IndexType cs = form & abi::mat::unit_columns ? 1 : e[abi::mat::col_stride];
+    BlockPtr<T, D, Diagonal> block{base + e[abi::mat::offset], e[abi::mat::row_stride], cs};
+    if (Diagonal) {
+        // The matrix's one rule, if any, for the slots that have it.
+        const int rule = form >> abi::mat::form_rule_shift;
+        block.rule =
+            aux >> abi::mat::rule_shift != abi::mat::plain ? rule : abi::mat::plain;
+        if (block.rule == abi::mat::diagonal_separate) {
+            block.diagonal = base + e[abi::mat::col_stride];
+            block.cs = 1;
+        }
+    }
+    return block;
+}
 
 struct Extent {
     const IndexType lower;

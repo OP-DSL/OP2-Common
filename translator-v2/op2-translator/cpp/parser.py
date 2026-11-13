@@ -291,9 +291,18 @@ def parseArgMat(loop: OP.Loop, args: List[Cursor], loc: Location, macros: Dict[L
     if access_type not in (OP.AccessType.INC, OP.AccessType.READ):
         raise ParseError("op_arg_mat access must be OP_INC or OP_READ", loc)
 
+    # Each block is found through its matrix's layout, in whatever storage the
+    # library keeps: op::rt::kernel::BlockPtr.
+    if dim is None:
+        raise ParseError("op_arg_mat needs a literal block dimension", loc)
     slots = f"op_mat_slots({mat_ptr},{row_map or 'OP_ID'},{row_idx if row_map else 0},{col_map or 'OP_ID'})"
-    dat_dim = dim * dim if dim is not None else None
-    loop.addArgDat(loc, mat_ptr, dat_dim, typ, False, slots, col_idx if col_map else 0, access_type)
+    dat_dim = dim * dim
+    mat_dim = dim
+    # A diagonal block, the same element on both sides, may lead its rows with
+    # their diagonal entry (hypre).
+    mat_diag = row_map == col_map and (row_map is None or row_idx == col_idx)
+    loop.addArgDat(loc, mat_ptr, dat_dim, typ, False, slots, col_idx if col_map else 0, access_type,
+                   mat_dim=mat_dim, mat_diag=mat_diag)
 
 
 def parseArgGbl(loop: OP.Loop, opt: bool, args: List[Cursor], loc: Location, macros: Dict[Location, str]) -> None:

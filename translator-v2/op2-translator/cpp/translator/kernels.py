@@ -253,9 +253,11 @@ def insertIncrements(
     rewriters = {e.key: r for e, r in entities if isinstance(e, Function)}
 
     targets = argumentTargets(entity, loop, funcs, match)
+    blocks = blockTargets(entity, loop, funcs)
     for func in funcs:
         for param_idx in sorted(targets.get(func.key, set())):
-            rewriteIncrements(func, rewriters[func.key], param_idx, targets, loop, call)
+            block = blocks.get(func.key, {}).get(param_idx)
+            rewriteIncrements(func, rewriters[func.key], param_idx, targets, loop, call, block)
 
     # A helper that takes an increment target takes nothing else there.
     for func in funcs:
@@ -304,9 +306,11 @@ def insertPtrs(
     read = argumentTargets(
         entity, loop, funcs, lambda arg: match(arg) and getattr(arg, "access_type", None) == OP.AccessType.READ
     )
+    blocks = blockTargets(entity, loop, funcs)
     for func in funcs:
         for param_idx in sorted(targets.get(func.key, set())):
             param = parameters(func)[param_idx]
+            block = blocks.get(func.key, {}).get(param_idx)
 
             def fail(node: Cursor, what: str, name: str = param.spelling, func: Function = func) -> None:
                 raise OP.OpError(
@@ -324,7 +328,9 @@ def insertPtrs(
                     (loop.loc, f"in the op_par_loop of {loop.kernel}"),
                 )
 
-            for _, parents, use_index, _ in ptrUses(func, rewriters[func.key], param, targets, fail):
+            for _, parents, use_index, _ in ptrUses(
+                func, rewriters[func.key], param, targets, fail, block=block
+            ):
                 # &p[i] and &*p would be raw pointers without the stride.
                 outer = parents[enclosing(parents, use_index - 1)]
                 if outer.kind == CursorKind.UNARY_OPERATOR and operatorToken(outer).spelling == "&":
@@ -343,6 +349,30 @@ def argumentTargets(
     return targets
 
 
+def isMatBlock(arg: OP.Arg) -> bool:
+    return isinstance(arg, OP.ArgDat) and arg.mat_dim is not None
+
+
+# The BlockPtr parameters of each parameter a matrix block argument reaches:
+# its dimension, and whether it is a diagonal block.
+def blockTargets(entity: Entity, loop: OP.Loop, funcs: List[Function]) -> Dict[str, Dict[int, str]]:
+    blocks: Dict[str, Dict[int, str]] = {}
+    for arg_idx, arg in enumerate(loop.args):
+        if isMatBlock(arg):
+            block = f"{arg.mat_dim}, true" if arg.mat_diag else f"{arg.mat_dim}"
+
+            def add(func: Function, idx: int, block: str = block) -> None:
+                if blocks.get(func.key, {}).get(idx, block) != block:
+                    raise OP.OpError(
+                        f"{func.name} takes both diagonal and other matrix blocks as its parameter {idx}", loop.loc
+                    )
+                blocks.setdefault(func.key, {})[idx] = block
+
+            mapParam(entity, arg_idx, funcs, add)
+
+    return blocks
+
+
 # Retype param, a pointer, to an op::rt::kernel::Ptr of its element type, and
 # yield each use of it as an element, as (subscript or dereference, its
 # ancestors, its index among them, whether a dereference).  A pass to a
@@ -355,13 +385,17 @@ def ptrUses(
     targets: Dict[str, Set[int]],
     fail: Callable[[Cursor, str], None],
     skip: Set[int] = frozenset(),
+    block: Optional[str] = None,
 ) -> Iterator[Tuple[Cursor, Tuple[Cursor, ...], int, bool]]:
     element = elementType(param)
     if element is None:
         fail(param, "it is not a pointer")
 
     name = param.spelling
-    rewriter.update(extentToSpan(param.extent), lambda _: f"op::rt::kernel::Ptr<{element[0]}> {name}")
+    ptr = f"op::rt::kernel::Ptr<{element[0]}>"
+    if block is not None:
+        ptr = f"op::rt::kernel::BlockPtr<{element[0]}, {block}>"
+    rewriter.update(extentToSpan(param.extent), lambda _: f"{ptr} {name}")
 
     for node, parents in walkWithParents(func.ast):
         if node.kind != CursorKind.DECL_REF_EXPR or node.hash in skip:
@@ -486,7 +520,13 @@ def location(extent: SourceRange, end: bool = False) -> Location:
 
 
 def rewriteIncrements(
-    func: Function, rewriter: Rewriter, param_idx: int, targets: Dict[str, Set[int]], loop: OP.Loop, call: str
+    func: Function,
+    rewriter: Rewriter,
+    param_idx: int,
+    targets: Dict[str, Set[int]],
+    loop: OP.Loop,
+    call: str,
+    block: Optional[str] = None,
 ) -> None:
     param = parameters(func)[param_idx]
     name = param.spelling
@@ -499,7 +539,7 @@ def rewriteIncrements(
         )
 
     consumed: Set[int] = set()
-    for target, parents, use_index, deref in ptrUses(func, rewriter, param, targets, fail, consumed):
+    for target, parents, use_index, deref in ptrUses(func, rewriter, param, targets, fail, consumed, block):
         index = enclosing(parents, use_index - 1)
         expr = parents[index]
         children = list(expr.get_children())

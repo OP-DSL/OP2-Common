@@ -13,28 +13,28 @@ namespace op::rt::plan {
 std::string_view updated_references(std::span<const op_arg> args,
                                     References& references) {
     references = {};
-    std::vector<op_dat> updated;
+    std::vector<const void *> updated;
     for (const op_arg& arg : args)
-        if (arg.opt != 0 && arg.argtype == OP_ARG_DAT &&
+        if (arg.opt != 0 && loop::has_target(arg) &&
             arg.map != nullptr && (arg.acc == OP_INC || arg.acc == OP_RW) &&
-            std::find(updated.begin(), updated.end(), arg.dat) == updated.end())
-            updated.push_back(arg.dat);
+            std::find(updated.begin(), updated.end(), loop::target(arg)) == updated.end())
+            updated.push_back(loop::target(arg));
     if (updated.empty())
         return "no_active_argument";
 
     // Every indirect argument on an updated dat, its reads too, so no chunk
     // reads a target another chunk of its batch updates.
-    std::vector<op_dat> dats;
+    std::vector<const void *> dats;
     for (const op_arg& arg : args) {
-        if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.map == nullptr ||
-            std::find(updated.begin(), updated.end(), arg.dat) == updated.end())
+        if (arg.opt == 0 || !loop::has_target(arg) || arg.map == nullptr ||
+            std::find(updated.begin(), updated.end(), loop::target(arg)) == updated.end())
             continue;
         if (arg.idx < 0)
             return "incompatible_argument";
 
-        auto found = std::find(dats.begin(), dats.end(), arg.dat);
+        auto found = std::find(dats.begin(), dats.end(), loop::target(arg));
         if (found == dats.end()) {
-            dats.push_back(arg.dat);
+            dats.push_back(loop::target(arg));
             references.groups.push_back(Group::of(arg));
             found = dats.end() - 1;
         }

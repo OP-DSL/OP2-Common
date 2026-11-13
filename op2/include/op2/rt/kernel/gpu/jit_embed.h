@@ -21,6 +21,7 @@
 #define OP_KERNEL_JIT_FILES(X)                                                     \
     X(op_kernel_prelude_, "op2/rt/kernel/prelude.h")                               \
     X(op_abi_staging_, "op2/rt/abi/staging.h")                                     \
+    X(op_abi_matrix_, "op2/rt/abi/matrix.h")                                       \
     X(op_abi_launch_, "op2/rt/abi/gpu/launch.h")                                   \
     X(op_kernel_inc_, "op2/rt/kernel/inc.h")                                       \
     X(op_kernel_staging_, "op2/rt/kernel/staging.h")                               \

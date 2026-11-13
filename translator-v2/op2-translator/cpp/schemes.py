@@ -43,6 +43,11 @@ class CppSeq(Scheme):
             raise ParseError(f"unable to find kernel: {loop.kernel}", loop.loc)
 
         extracted_entities = ctk.extractDependencies(kernel_entities, app)
+
+        # A matrix block is an op::rt::kernel::BlockPtr; the rest stay pointers.
+        for entity, _ in filter(lambda e: e[0] in kernel_entities, extracted_entities):
+            ctk.insertPtrs(entity, loop, extracted_entities, ctk.isMatBlock)
+
         return ctk.writeSource(extracted_entities)
 
 
@@ -75,6 +80,9 @@ class CppOpenMPLegacy(Scheme):
         kernel_idx: int,
     ) -> str:
         import cpp.translator.kernels as ctk
+
+        if any(ctk.isMatBlock(arg) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: matrix block arguments are not supported by {self.target.name}", loop.loc)
 
         if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
@@ -114,6 +122,9 @@ class CppCudaLegacy(Scheme):
         kernel_idx: int,
     ) -> str:
         import cpp.translator.kernels as ctk
+
+        if any(ctk.isMatBlock(arg) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: matrix block arguments are not supported by {self.target.name}", loop.loc)
 
         if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)
@@ -172,6 +183,9 @@ class CppHipLegacy(Scheme):
         kernel_idx: int,
     ) -> str:
         import cpp.translator.kernels as ctk
+
+        if any(ctk.isMatBlock(arg) for arg in loop.args):
+            raise OP.OpError(f"{loop.kernel}: matrix block arguments are not supported by {self.target.name}", loop.loc)
 
         if ctk.hasRuntimeDim(loop):
             raise OP.OpError(f"{loop.kernel}: runtime map indices and dims are not supported by {self.target.name}", loop.loc)

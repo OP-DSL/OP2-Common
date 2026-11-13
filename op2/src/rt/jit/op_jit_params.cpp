@@ -1,6 +1,7 @@
 #include <op2/rt/jit/params.h>
 
 #include <op2/env.h>
+#include <op2/rt/abi/matrix.h>
 #include <op_lib_core.h>
 
 #include <algorithm>
@@ -73,6 +74,11 @@ void Param::update(std::span<const op_arg> args, DatStride dat_stride, const Opt
         assert(index >= 0 && static_cast<std::size_t>(index) < args.size());
         assert(elem_size() == sizeof(int) && m_elems == 1);
         *static_cast<int *>(m_data) = args[index].dim;
+        break;
+    case abi::ParamSource::mat_form:
+        assert(index >= 0 && static_cast<std::size_t>(index) < args.size());
+        assert(elem_size() == sizeof(int) && m_elems == 1);
+        *static_cast<int *>(m_data) = args[index].mat->form;
         break;
     case abi::ParamSource::strategy:
     case abi::ParamSource::global_stride:

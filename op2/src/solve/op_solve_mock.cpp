@@ -31,7 +31,6 @@ void from_host(void *dst, const void *src, std::size_t bytes) { std::memcpy(dst,
 
 void spmv(const Format& f, int d, int n, const Part& local, const Part& nonlocal, const double *x, const double *halo,
           double *y) {
-#pragma omp parallel for
     for (int i = 0; i < n; i++)
         y[i] = row_product(f, d, local, i, x) + (nonlocal.rows > 0 ? row_product(f, d, nonlocal, i, halo) : 0.0);
 }
@@ -43,7 +42,6 @@ void inverse_diagonal(const Format& f, int d, int n, const Part& local, double *
 
 double dot(int n, const double *a, const double *b) {
     double sum = 0.0;
-#pragma omp parallel for reduction(+ : sum)
     for (int i = 0; i < n; i++)
         sum += a[i] * b[i];
     return sum;

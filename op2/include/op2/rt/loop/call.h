@@ -102,6 +102,22 @@ public:
     std::string describe() const;
 };
 
+// What a dat or matrix argument reaches, as the planners tell targets apart
+// and size them: its dat, or its matrix's slots (op_arg_mat), the target set
+// of its slot map.
+inline bool has_target(const op_arg& arg) {
+    return arg.argtype == OP_ARG_DAT || arg.argtype == OP_ARG_MAT;
+}
+
+inline const void *target(const op_arg& arg) {
+    return arg.argtype == OP_ARG_MAT ? static_cast<const void *>(arg.mat)
+                                     : static_cast<const void *>(arg.dat);
+}
+
+inline op_set target_set(const op_arg& arg) {
+    return arg.argtype == OP_ARG_MAT ? arg.map->to : arg.dat->set;
+}
+
 // An argument's element type, from its type's C or Fortran spelling; none
 // for a type OP2 does not know.
 std::optional<abi::ElementType> element_type(const char *type);

@@ -183,9 +183,9 @@ std::string_view grouped_references(std::span<const op_arg> args,
         if (arg.opt == 0)
             continue;
 
-        assert(arg.argtype == OP_ARG_DAT);
+        assert(loop::has_target(arg));
         assert(read_write || arg.acc == OP_INC);
-        assert(arg.dat != nullptr && arg.map != nullptr);
+        assert(loop::target(arg) != nullptr && arg.map != nullptr);
         // A set with no elements to run may have no map data.
         assert(arg.map_data != nullptr || arg.map->from->size + arg.map->from->exec_size == 0);
         assert(arg.idx >= 0 && arg.idx < arg.map->dim);
@@ -195,7 +195,7 @@ std::string_view grouped_references(std::span<const op_arg> args,
         auto& resolved = references.groups[group_index];
         if (resolved.dat == nullptr)
             resolved = Group::of(arg);
-        else if (resolved.dat != arg.dat)
+        else if (resolved.dat != loop::target(arg))
             return "incompatible_argument";
     }
 
@@ -204,7 +204,7 @@ std::string_view grouped_references(std::span<const op_arg> args,
 
     // Groups are planned apart, so two resolving to one dat (passed through two
     // dummy arguments) would race.
-    std::unordered_map<const op_dat_core *, std::size_t> claimed;
+    std::unordered_map<const void *, std::size_t> claimed;
     for (std::size_t index = 0; index < references.groups.size(); ++index) {
         const auto *dat = references.groups[index].dat;
         if (dat != nullptr && !claimed.emplace(dat, index).second)
@@ -215,10 +215,10 @@ std::string_view grouped_references(std::span<const op_arg> args,
     // stale staged targets, and an indirect update would race.
     for (std::size_t index = 0; index < args.size(); ++index) {
         const op_arg& arg = args[index];
-        if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.dat == nullptr ||
+        if (arg.opt == 0 || !loop::has_target(arg) || loop::target(arg) == nullptr ||
             grouped[index])
             continue;
-        if (claimed.count(arg.dat) != 0 || indirect_update(arg, read_write))
+        if (claimed.count(loop::target(arg)) != 0 || indirect_update(arg, read_write))
             return "incompatible_argument";
     }
 

@@ -59,6 +59,10 @@ constexpr Param dat_dim(const char *name, int *data, int arg) {
     return {abi::dat_dim(name, data, arg), nullptr, nullptr, false};
 }
 
+constexpr Param mat_form(const char *name, int *data, int arg) {
+    return {abi::mat_form(name, data, arg), nullptr, nullptr, false};
+}
+
 // A value a strategy fixes for its kernels, its family's on the axis key
 // ("block_size", "singles", "wavefront"), under the name its kernels read it
 // by.

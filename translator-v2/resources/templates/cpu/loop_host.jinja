@@ -28,6 +28,23 @@
 map{{arg.map_id}}[n * map{{arg.map_id}}_dim + {{map_idx(arg)}}]
 {%- endmacro -%}
 
+{#- A matrix block argument as an op::rt::kernel::BlockPtr: its slot's block in
+    the matrix's regions, through its layout, or contiguous at data. -#}
+{%- macro block_params(arg, diagonal = none) -%}
+    {%- set diagonal = arg.mat_diag if diagonal is none else diagonal -%}
+{{"const " if lh.dat(arg) is read_in(lh)}}{{lh.dat(arg).typ.c()}}, {{arg.mat_dim}}{{", true" if diagonal}}
+{%- endmacro -%}
+
+{%- macro block_type(arg, diagonal = none) -%}
+op::rt::kernel::BlockPtr<{{block_params(arg, diagonal)}}>
+{%- endmacro -%}
+
+{#- A staged slot's target may be any block, so a diagonal one too. -#}
+{%- macro block_at(arg, slot, diagonal = none) -%}
+    {%- set d = "dat%d" % arg.dat_id -%}
+op::rt::kernel::mat_block<{{block_params(arg, diagonal)}}>({{d}}, {{d}}_r1, {{d}}_r2, {{d}}_layout, {{d}}_form, {{slot}})
+{%- endmacro -%}
+
 {#- An argument's global data for element n. -#}
 {%- macro global_address(arg) -%}
     {%- if arg is direct -%}
@@ -44,7 +61,14 @@ dat{{arg.dat_id}} + {{map_lookup(arg)}} * {{dat_dim(lh.dat(arg))}}
     {%- if arg is gbl or arg is info -%}
 op::rt::kernel::Ptr{gbl{{arg.id}}}
     {%- elif mode == "staged" and arg in groups.chunk_atomics.args -%}
-op::rt::kernel::Ptr{op2_stage{{groups.chunk_atomics.group(arg)}} + stage_words[{{groups.chunk_atomics.position(arg)}} * stride + n] * {{dat_dim(lh.dat(arg))}}}
+        {%- set slot = "op2_stage%d + stage_words[%d * stride + n] * %s" % (groups.chunk_atomics.group(arg), groups.chunk_atomics.position(arg), dat_dim(lh.dat(arg))) -%}
+        {%- if arg is mat -%}
+{{block_type(arg)}}{ {{-slot-}} }
+        {%- else -%}
+op::rt::kernel::Ptr{ {{-slot-}} }
+        {%- endif -%}
+    {%- elif arg is mat -%}
+{{block_at(arg, map_lookup(arg))}}
     {%- else -%}
 op::rt::kernel::Ptr{ {{-global_address(arg)-}} }
     {%- endif -%}
@@ -81,8 +105,17 @@ op2_m_{{lh.name}}{{variant}}::{{lh.kernel}}{{"<op::rt::kernel::%s>" % hook_type[
 {% macro prologue() %}
 {% for dat in lh.dats %}
     {% set cv = "const " if dat is read_in(lh) else "" %}
+    {% if dat.mat %}
+        {% for r in range(3) %}
+    [[maybe_unused]] {{cv}}{{dat.typ.c()}} *const dat{{dat.id}}{{"_r%d" % r if r else ""}} =
+        reinterpret_cast<{{cv}}{{dat.typ.c()}} *>(args[{{dat.arg_id}}].mat->region[{{r}}]);
+        {% endfor %}
+    [[maybe_unused]] const int *const dat{{dat.id}}_layout = args[{{dat.arg_id}}].mat->layout;
+    [[maybe_unused]] const int dat{{dat.id}}_form = args[{{dat.arg_id}}].mat->form;
+    {% else %}
     [[maybe_unused]] {{cv}}{{dat.typ.c()}} *const dat{{dat.id}} =
         reinterpret_cast<{{cv}}{{dat.typ.c()}} *>(args[{{dat.arg_id}}].data);
+    {% endif %}
     {% if dat.dim is none %}
     [[maybe_unused]] const int dat{{dat.id}}_dim = args[{{dat.arg_id}}].dim;
     {% endif %}
@@ -212,12 +245,17 @@ static void op2_k_{{lh.name}}{{variant}}_chunk_atomics(const op::rt::abi::cpu::C
                 {{kernel_call("staged", "plain")|indent(16)}}
             }
 
-            {% for dat_id in groups.chunk_atomics.dats %}
-                {% set dat = lh.dat(dat_id) %}
+            {% for arg in groups.chunk_atomics.leaders() %}
+                {% set dat = lh.dat(arg) %}
             for (int op2_s = 0; op2_s < op2_stage{{loop.index0}}_count; ++op2_s) {
                 const int op2_target = op2_slot_targets[op2_slots[{{loop.index0}}] + op2_s];
-                op::rt::kernel::stage_flush(op::rt::kernel::Ptr{dat{{dat_id}} + op2_target * {{dat_dim(dat)}}},
+                {% if arg is mat %}
+                op::rt::kernel::stage_flush({{block_at(arg, "op2_target", true)}},
                                  op2_stage{{loop.index0}}, op2_s, {{dat_dim(dat)}});
+                {% else %}
+                op::rt::kernel::stage_flush(op::rt::kernel::Ptr{dat{{arg.dat_id}} + op2_target * {{dat_dim(dat)}}},
+                                 op2_stage{{loop.index0}}, op2_s, {{dat_dim(dat)}});
+                {% endif %}
             }
             {% endfor %}
         };

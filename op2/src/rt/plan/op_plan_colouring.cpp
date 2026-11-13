@@ -17,23 +17,26 @@ SetColouring colour_set(std::span<const op_arg> args, const op::rt::loop::Sectio
 
     // The updated targets, one mask vector per updated dat.
     std::vector<std::pair<const op_arg *, std::size_t>> updates;
-    std::vector<op_dat> dats;
+    std::vector<const void *> dats;
+    std::vector<op_set> sets;
     for (const op_arg& arg : args) {
-        if (arg.opt == 0 || arg.argtype != OP_ARG_DAT || arg.idx < 0 ||
+        if (arg.opt == 0 || !loop::has_target(arg) || arg.idx < 0 ||
             (arg.acc != OP_INC && arg.acc != OP_RW))
             continue;
 
         std::size_t dat = 0;
-        while (dat < dats.size() && dats[dat] != arg.dat)
+        while (dat < dats.size() && dats[dat] != loop::target(arg))
             ++dat;
-        if (dat == dats.size())
-            dats.push_back(arg.dat);
+        if (dat == dats.size()) {
+            dats.push_back(loop::target(arg));
+            sets.push_back(loop::target_set(arg));
+        }
         updates.push_back({&arg, dat});
     }
 
     std::vector<std::vector<std::uint64_t>> masks(dats.size());
     for (std::size_t dat = 0; dat < dats.size(); ++dat) {
-        op_set target_set = dats[dat]->set;
+        op_set target_set = sets[dat];
         masks[dat].assign(static_cast<std::size_t>(target_set->size +
                                                    target_set->exec_size +
                                                    target_set->nonexec_size),

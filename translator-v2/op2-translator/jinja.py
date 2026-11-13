@@ -97,6 +97,7 @@ env.tests["scalar"] = scalar
 env.tests["opt"] = lambda arg, loop=None: hasattr(arg, "opt") and arg.opt
 
 env.tests["dat"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat)
+env.tests["mat"] = lambda arg, loop=None: isinstance(arg, OP.ArgDat) and arg.mat_dim is not None
 env.tests["gbl"] = lambda arg, loop=None: isinstance(arg, OP.ArgGbl)
 env.tests["idx"] = lambda arg, loop=None: isinstance(arg, OP.ArgIdx)
 env.tests["info"] = lambda arg, loop=None: isinstance(arg, OP.ArgInfo)

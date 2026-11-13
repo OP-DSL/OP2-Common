@@ -47,7 +47,7 @@ std::uint64_t Call::key() const {
     hash.add(set->index).add(run_size);
     auto first_on_dat = [&](std::size_t i) {
         for (std::size_t j = 0; j < i; ++j)
-            if (args[j].opt != 0 && args[j].dat == args[i].dat)
+            if (args[j].opt != 0 && has_target(args[j]) && target(args[j]) == target(args[i]))
                 return static_cast<std::int32_t>(j);
         return static_cast<std::int32_t>(i);
     };
@@ -58,7 +58,7 @@ std::uint64_t Call::key() const {
             continue;
         }
         hash.add(1 | arg.argtype << 1 | arg.acc << 4 | (arg.idx & 0xffff) << 16)
-            .add(arg.dat != nullptr ? first_on_dat(i) : -1)
+            .add(has_target(arg) ? first_on_dat(i) : -1)
             .add(arg.map != nullptr ? arg.map->index : -1)
             .add(arg.dim);
     }
