@@ -5,8 +5,8 @@
 // the limit.  A build starts only while fewer than the limit are under way,
 // so one that cannot start waits for a later call, and its result is
 // published once its place is free, so a call that sees it can start
-// another.  Destroying the pool waits for the builds under way.  Defined in
-// src/rt/jit/op_jit_pool.cpp.
+// another.  Stopping or destroying the pool waits for the builds under way.
+// Defined in src/rt/jit/op_jit_pool.cpp.
 
 #include <condition_variable>
 #include <cstddef>
@@ -43,6 +43,10 @@ public:
     ~BuildPool();
 
     void set_limit(int limit);
+
+    // Wait for the builds under way and end the threads: the destructor, and
+    // the runtime when a program leaves without op_exit (op_rt_lifecycle.cpp).
+    void stop();
 
     // Start make()'s task while fewer than the limit are under way, on a
     // free thread or a new one; whether it started.  make is called only

@@ -4,7 +4,9 @@
 
 namespace op::rt::jit {
 
-BuildPool::~BuildPool() {
+BuildPool::~BuildPool() { stop(); }
+
+void BuildPool::stop() {
     {
         std::lock_guard lock{m_mutex};
         m_stopping = true;
@@ -12,6 +14,7 @@ BuildPool::~BuildPool() {
     m_wake.notify_all();
     for (auto& thread : m_threads)
         thread.join();
+    m_threads.clear();
 }
 
 void BuildPool::set_limit(int limit) {
